@@ -1,6 +1,6 @@
 # GodotForge — Sprint Plan
 
-> Sprint 0 · March 2026
+> Last updated: March 6, 2026
 
 ---
 
@@ -89,7 +89,8 @@
 - [x] Build history with artifact download links
 - [x] Webhook receiver dispatches to Inngest (auto-builds)
 - [x] Supabase Storage bucket + RLS policies for artifacts
-- [ ] **Infrastructure setup needed:** Railway account, Inngest account, env vars on Vercel
+- [x] Infrastructure wired: Railway API token validated (project "optimistic-endurance"), Inngest keys validated (function discovered)
+- [x] Vercel production env vars: all 9 configured (Supabase, Inngest, Railway)
 
 ---
 
@@ -111,14 +112,42 @@
 
 ---
 
-## Sprint 5 — Deploy Pipeline & Beta Launch (May 14 – May 28)
+## Sprint 5 — Schema, Cancellation & Hardening (Completed March 6)
 
-**Goal:** Steam + itch.io deployment. Invite beta users.
+**Goal:** Complete database schema, build cancellation, error handling, infrastructure validation.
 
+- [x] Full Supabase schema applied via MCP: profiles, projects, builds, build_logs, artifacts
+- [x] RLS policies on all tables (users access own data only)
+- [x] Auto-create profile trigger on auth.users insert
+- [x] Auto-compute build duration trigger
+- [x] Supabase Storage `artifacts` bucket + storage policies
+- [x] Realtime publication for builds + build_logs tables
+- [x] Build cancellation API (`POST /api/builds/cancel`) — sends Inngest cancel event
+- [x] Cancel Build button in build detail UI (visible for queued/running)
+- [x] Settings page error handling (save failures with user-visible messages)
+- [x] Railway API validated: authenticated as ShawnVentures, project + environment confirmed
+- [x] Inngest validated: function_count=1, event key + signing key valid
+- [x] Vercel env vars: all 9 production variables set
+
+---
+
+## Sprint 6 — Dogfooding & Deploy Pipeline (Next)
+
+**Goal:** End-to-end test with Roadblocs, then Steam/itch.io deployment.
+
+### Dogfooding Prerequisites
+- [ ] Push Roadblocs to GitHub (`epicmotionSD/roblocs`) — Godot project in `godot/` subdirectory
+- [ ] Create `export_presets.cfg` in Roadblocs (Godot Editor → Export → add presets)
+- [ ] Build + push Godot 4.6 Docker image (`ghcr.io/godotforge/godot-builder:4.6`)
+- [ ] Connect Roadblocs via GodotForge dashboard, trigger first real build
+- [ ] Verify full pipeline: clone → detect → build → logs → artifacts → download
+
+### Deploy Pipeline
 - [ ] Steam deploy: SteamCMD integration (app ID, depot mapping UI)
 - [ ] itch.io deploy: Butler integration (API key, game slug UI)
 - [ ] Credential storage: encrypted at rest, UI for managing secrets
-- [ ] Webhook triggers: auto-build on push, PR, tag
+
+### Billing & Beta
 - [ ] Stripe billing: Starter (free) + Indie ($19/mo) go live
 - [ ] Build minutes tracking and quota enforcement
 - [ ] Invite 50–100 beta users from waitlist

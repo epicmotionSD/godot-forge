@@ -1,6 +1,6 @@
 # GodotForge — Product Roadmap
 
-> Last updated: March 2026
+> Last updated: March 6, 2026
 
 ---
 
@@ -14,29 +14,31 @@ GodotForge follows a phased approach: MVP → Growth → Platform. Each phase bu
 
 **Goal:** Functional CI/CD that a Godot dev can use end-to-end.
 
-### Milestone 1.1 — Foundation (Weeks 1–3)
+### Milestone 1.1 — Foundation (Weeks 1–3) ✅
 - [x] Next.js + TypeScript project setup (Vercel deployment)
 - [x] Supabase auth (GitHub OAuth)
 - [x] User dashboard shell (project list, settings, onboarding)
-- [x] Database schema: users, projects, builds, artifacts, credentials
+- [x] Database schema: profiles, projects, builds, build_logs, artifacts — applied via Supabase MCP
+- [x] Full RLS policies, auto-profile trigger, build duration trigger, Realtime publication
 
-### Milestone 1.2 — Repo Connection & Detection (Weeks 3–5)
-- [x] GitHub App: OAuth flow, repo listing, webhook registration
-- [ ] GitLab App: OAuth flow, repo listing, webhook registration *(deferred)*
+### Milestone 1.2 — Repo Connection & Detection (Weeks 3–5) ✅
+- [x] GitHub OAuth flow, repo listing, webhook registration
+- [ ] GitLab App: OAuth flow, repo listing, webhook registration *(deferred to Phase 2)*
 - [x] Auto-detect: `project.godot` location, engine version, `export_presets.cfg`
 - [x] Project config UI: confirm detected settings, override engine version
 
-### Milestone 1.3 — Build System (Weeks 5–7)
+### Milestone 1.3 — Build System (Weeks 5–7) ✅
 - [x] Docker containers with Godot 4.x export templates pre-installed
-- [x] Build runner orchestration on Railway
-- [x] Build queue management via Inngest
+- [x] Build runner orchestration on Railway (API validated, project "optimistic-endurance")
+- [x] Build queue management via Inngest (validated: function discovered, keys valid)
 - [x] `godot --headless --export-release` per platform
 - [x] Visual build matrix: toggle Windows, Linux, macOS, Web, Android *(Sprint 4)*
 - [x] Real-time build log streaming via Supabase Realtime *(Sprint 4)*
 - [x] Parallel builds: one container per platform via Inngest fan-out *(Sprint 4)*
+- [x] Build cancellation via Inngest cancelOn + cancel API *(Sprint 5)*
 
 ### Milestone 1.4 — Deploy Pipeline (Weeks 7–9)
-- [ ] Artifact storage (S3-compatible) + download links
+- [x] Artifact storage (Supabase Storage bucket) + signed download URLs
 - [ ] Steam deployment via SteamCMD (app ID + depot mapping config)
 - [ ] itch.io deployment via Butler (API key + game slug config)
 - [ ] Credential encryption at rest for Steam/itch.io secrets
@@ -46,8 +48,12 @@ GodotForge follows a phased approach: MVP → Growth → Platform. Each phase bu
 - [x] README status badges (build passing/failing) *(Sprint 4)*
 - [x] Webhook triggers: auto-build on push, PR, or tag creation
 - [x] Manual trigger button in dashboard
+- [x] Build cancellation UI (cancel button on queued/running builds) *(Sprint 5)*
+- [x] Error handling: settings save failures with user-visible messages *(Sprint 5)*
+- [x] Vercel production env vars: all 9 configured (Supabase, Inngest, Railway)
 - [ ] Stripe integration: Starter (free) + Indie ($19/mo) tiers
 - [ ] Landing page updates, waitlist → beta access conversion
+- [ ] **Dogfooding:** Internal test with Roadblocs (Godot 4.6 game) — requires GitHub push + export presets + Godot 4.6 Docker image
 
 ---
 
