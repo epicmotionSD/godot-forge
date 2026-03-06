@@ -1,0 +1,45 @@
+name: Build Godot Builder Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      godot_version:
+        description: 'Godot version (e.g. 4.3, 4.6)'
+        required: true
+        default: '4.6'
+      godot_release:
+        description: 'Godot release type'
+        required: true
+        default: 'stable'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: godotforge/godot-builder
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: docker/godot-builder
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.godot_version }}
+          build-args: |
+            GODOT_VERSION=${{ inputs.godot_version }}
+            GODOT_RELEASE=${{ inputs.godot_release }}
