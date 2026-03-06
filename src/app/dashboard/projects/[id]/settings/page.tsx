@@ -32,6 +32,7 @@ export default function ProjectSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Editable state
   const [platforms, setPlatforms] = useState<string[]>([]);
@@ -72,20 +73,29 @@ export default function ProjectSettingsPage() {
   async function handleSave() {
     if (platforms.length === 0) return;
     setSaving(true);
-    const res = await fetch(`/api/projects/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        platforms,
-        trigger_on_push: triggerPush,
-        trigger_on_tag: triggerTag,
-        trigger_on_pr: triggerPr,
-      }),
-    });
-    setSaving(false);
-    if (res.ok) {
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+    setSaveError(null);
+    try {
+      const res = await fetch(`/api/projects/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          platforms,
+          trigger_on_push: triggerPush,
+          trigger_on_tag: triggerTag,
+          trigger_on_pr: triggerPr,
+        }),
+      });
+      if (res.ok) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      } else {
+        const body = await res.json().catch(() => ({}));
+        setSaveError(body.error || `Save failed (${res.status})`);
+      }
+    } catch {
+      setSaveError("Network error — check your connection and try again.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -272,6 +282,9 @@ export default function ProjectSettingsPage() {
           </button>
           {saved && (
             <span className="text-sm text-gf-green">Settings saved</span>
+          )}
+          {saveError && (
+            <span className="text-sm text-gf-red">{saveError}</span>
           )}
           <Link
             href={`/dashboard/projects/${id}`}

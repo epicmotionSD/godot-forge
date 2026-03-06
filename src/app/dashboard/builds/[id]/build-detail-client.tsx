@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useBuildStatus } from "@/lib/hooks/use-build-status";
 import { BuildLogViewer } from "@/components/build-log-viewer";
 
@@ -57,15 +58,42 @@ export function BuildDetailClient({
 }) {
   const status = useBuildStatus(buildId, initialStatus);
   const cfg = statusConfig[status] || statusConfig.queued;
+  const [cancelling, setCancelling] = useState(false);
+  const canCancel = status === "queued" || status === "running";
+
+  async function handleCancel() {
+    if (!canCancel || cancelling) return;
+    setCancelling(true);
+    try {
+      await fetch("/api/builds/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ build_id: buildId }),
+      });
+    } finally {
+      setCancelling(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
       {/* Status banner */}
-      <div className="flex items-center gap-3 bg-gf-card border border-gf-border rounded-xl p-4">
-        <div className={`w-3 h-3 rounded-full ${cfg.bg}`} />
-        <span className={`text-sm font-semibold ${cfg.color}`}>
-          {cfg.label}
-        </span>
+      <div className="flex items-center justify-between bg-gf-card border border-gf-border rounded-xl p-4">
+        <div className="flex items-center gap-3">
+          <div className={`w-3 h-3 rounded-full ${cfg.bg}`} />
+          <span className={`text-sm font-semibold ${cfg.color}`}>
+            {cfg.label}
+          </span>
+        </div>
+        {canCancel && (
+          <button
+            onClick={handleCancel}
+            disabled={cancelling}
+            className="px-3 py-1.5 text-xs font-medium rounded-lg bg-gf-red/10 text-gf-red border border-gf-red/20 hover:bg-gf-red/20 transition-colors disabled:opacity-50"
+          >
+            {cancelling ? "Cancelling…" : "Cancel Build"}
+          </button>
+        )}
       </div>
 
       {/* Build Logs */}
