@@ -1,0 +1,12 @@
+node_modules/
+.vercel/
+.env
+.env.local
+.env.*.local
+combined.log
+error.log
+.vercel
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts

@@ -1,0 +1,146 @@
+const RAILWAY_API = "https://backboard.railway.app/graphql/v2";
+
+interface RailwayDeployResult {
+  serviceId: string;
+  deploymentId: string;
+}
+
+function headers() {
+  return {
+    Authorization: `Bearer ${process.env.RAILWAY_API_TOKEN}`,
+    "Content-Type": "application/json",
+  };
+}
+
+async function gql(query: string, variables: Record<string, unknown> = {}) {
+  const res = await fetch(RAILWAY_API, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify({ query, variables }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Railway API error (${res.status}): ${text}`);
+  }
+  const data = await res.json();
+  if (data.errors) {
+    throw new Error(`Railway GraphQL error: ${JSON.stringify(data.errors)}`);
+  }
+  return data.data;
+}
+
+/**
+ * Create a one-off Railway service from the builder Docker image,
+ * passing build-specific env vars, and trigger a deployment.
+ */
+export async function startBuildContainer(opts: {
+  buildId: string;
+  repoUrl: string;
+  commitSha: string;
+  projectPath: string;
+  platforms: string[];
+}): Promise<RailwayDeployResult> {
+  const projectId = process.env.RAILWAY_PROJECT_ID!;
+  const environmentId = process.env.RAILWAY_ENVIRONMENT_ID!;
+  const builderImage = process.env.GODOT_BUILDER_IMAGE || "ghcr.io/godotforge/godot-builder:4.3";
+
+  // Create a service for this build
+  const createResult = await gql(
+    `mutation($input: ServiceCreateInput!) {
+      serviceCreate(input: $input) { id }
+    }`,
+    {
+      input: {
+        projectId,
+        name: `build-${opts.buildId.slice(0, 8)}`,
+      },
+    }
+  );
+  const serviceId = createResult.serviceCreate.id;
+
+  // Set the Docker image source
+  await gql(
+    `mutation($id: String!, $input: ServiceInstanceUpdateInput!) {
+      serviceInstanceUpdate(serviceId: $id, input: $input)
+    }`,
+    {
+      id: serviceId,
+      input: {
+        source: { image: builderImage },
+      },
+    }
+  );
+
+  // Set environment variables for the build
+  const envVars: Record<string, string> = {
+    BUILD_ID: opts.buildId,
+    REPO_URL: opts.repoUrl,
+    COMMIT_SHA: opts.commitSha,
+    PROJECT_PATH: opts.projectPath,
+    PLATFORMS: opts.platforms.join(","),
+    SUPABASE_URL: process.env.SUPABASE_URL!,
+    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  };
+
+  for (const [name, value] of Object.entries(envVars)) {
+    await gql(
+      `mutation($input: VariableUpsertInput!) {
+        variableUpsert(input: $input)
+      }`,
+      {
+        input: {
+          projectId,
+          environmentId,
+          serviceId,
+          name,
+          value,
+        },
+      }
+    );
+  }
+
+  // Trigger deployment
+  const deployResult = await gql(
+    `mutation($input: DeploymentTriggerInput!) {
+      deploymentTriggerCreate(input: $input) { id }
+    }`,
+    {
+      input: {
+        serviceId,
+        environmentId,
+      },
+    }
+  );
+
+  return {
+    serviceId,
+    deploymentId: deployResult.deploymentTriggerCreate.id,
+  };
+}
+
+/**
+ * Check the status of a Railway deployment.
+ */
+export async function getDeploymentStatus(
+  deploymentId: string
+): Promise<{ status: string; }> {
+  const result = await gql(
+    `query($id: String!) {
+      deployment(id: $id) { status }
+    }`,
+    { id: deploymentId }
+  );
+  return { status: result.deployment.status };
+}
+
+/**
+ * Clean up the one-off service after build completes.
+ */
+export async function deleteBuildService(serviceId: string): Promise<void> {
+  await gql(
+    `mutation($id: String!) {
+      serviceDelete(id: $id)
+    }`,
+    { id: serviceId }
+  );
+}
