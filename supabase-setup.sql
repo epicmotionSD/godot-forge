@@ -10,7 +10,10 @@ create table if not exists public.waitlist (
   source text default 'landing_page',
   created_at timestamptz default now()
 );
-alter table public.waitlist add constraint waitlist_email_unique unique (email);
+do $$ begin
+  alter table public.waitlist add constraint waitlist_email_unique unique (email);
+exception when duplicate_object then null;
+end $$;
 alter table public.waitlist enable row level security;
 
 -- 2. Profiles (user data + GitHub OAuth token)
