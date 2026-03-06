@@ -43,3 +43,11 @@ jobs:
           build-args: |
             GODOT_VERSION=${{ inputs.godot_version }}
             GODOT_RELEASE=${{ inputs.godot_release }}
+
+      - name: Make package public
+        run: |
+          curl -s -X PATCH \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/user/packages/container/godot-builder" \
+            -d '{"visibility":"public"}' || true
