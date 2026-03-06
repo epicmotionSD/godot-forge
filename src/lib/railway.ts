@@ -39,10 +39,12 @@ export async function startBuildContainer(opts: {
   commitSha: string;
   projectPath: string;
   platforms: string[];
+  godotVersion?: string;
 }): Promise<RailwayDeployResult> {
   const projectId = process.env.RAILWAY_PROJECT_ID!;
   const environmentId = process.env.RAILWAY_ENVIRONMENT_ID!;
-  const builderImage = process.env.GODOT_BUILDER_IMAGE || "ghcr.io/godotforge/godot-builder:4.3";
+  const tag = opts.godotVersion || "4.3";
+  const builderImage = process.env.GODOT_BUILDER_IMAGE || `ghcr.io/epicmotionsd/godot-builder:${tag}`;
 
   // Create a service for this build
   const createResult = await gql(

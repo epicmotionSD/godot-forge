@@ -25,9 +25,10 @@ async function runPlatformBuild(
     repoUrl: string;
     commitSha: string;
     projectPath: string;
+    godotVersion?: string;
   }
 ) {
-  const { buildId, platform, repoUrl, commitSha, projectPath } = opts;
+  const { buildId, platform, repoUrl, commitSha, projectPath, godotVersion } = opts;
 
   const deployment = await step.run(
     `start-container-${platform}`,
@@ -38,6 +39,7 @@ async function runPlatformBuild(
         commitSha,
         projectPath,
         platforms: [platform],
+        godotVersion,
       });
     }
   );
@@ -92,7 +94,7 @@ export const buildFunction = inngest.createFunction(
     const build = await step.run("fetch-build", async () => {
       const { data, error } = await supabase
         .from("builds")
-        .select("*, projects(repo_url, project_path)")
+        .select("*, projects(repo_url, project_path, godot_version)")
         .eq("id", build_id)
         .single();
 
@@ -116,6 +118,7 @@ export const buildFunction = inngest.createFunction(
     const project = build.projects as {
       repo_url: string;
       project_path: string;
+      godot_version: string | null;
     };
 
     const results = await Promise.all(
@@ -126,6 +129,7 @@ export const buildFunction = inngest.createFunction(
           repoUrl: project.repo_url,
           commitSha: build.commit_sha || "",
           projectPath: project.project_path || ".",
+          godotVersion: project.godot_version || undefined,
         })
       )
     );

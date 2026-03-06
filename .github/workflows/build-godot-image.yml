@@ -14,7 +14,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: godotforge/godot-builder
+  IMAGE_NAME: epicmotionsd/godot-builder
 
 jobs:
   build-and-push:
