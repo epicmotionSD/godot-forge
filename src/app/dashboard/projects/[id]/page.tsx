@@ -167,9 +167,10 @@ export default async function ProjectDetailPage({
       ) : (
         <div className="space-y-2">
           {builds.map((build) => (
-            <div
+            <Link
               key={build.id}
-              className="flex items-center gap-4 p-4 bg-gf-card border border-gf-border rounded-xl"
+              href={`/dashboard/builds/${build.id}`}
+              className="flex items-center gap-4 p-4 bg-gf-card border border-gf-border rounded-xl hover:border-gf-border-hover transition-colors"
             >
               <div
                 className={`w-3 h-3 rounded-full ${
@@ -196,18 +197,17 @@ export default async function ProjectDetailPage({
                 <div className="flex gap-1">
                   {(build.artifacts as { id: string; platform: string; file_name: string }[]).map(
                     (a) => (
-                      <a
+                      <span
                         key={a.id}
-                        href={`/api/builds/download?artifact_id=${a.id}`}
-                        className="px-2 py-0.5 rounded text-xs font-mono bg-gf-blue/10 text-gf-blue hover:bg-gf-blue/20 transition-colors"
+                        className="px-2 py-0.5 rounded text-xs font-mono bg-gf-blue/10 text-gf-blue"
                       >
                         {a.platform}
-                      </a>
+                      </span>
                     )
                   )}
                 </div>
               )}
-            </div>
+            </Link>
           ))}
         </div>
       )}

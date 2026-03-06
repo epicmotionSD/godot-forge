@@ -34,7 +34,13 @@ update_build_status() {
 append_log() {
   local phase="$1"
   local message="$2"
-  local body="{\"build_id\":\"${BUILD_ID}\",\"phase\":\"${phase}\",\"message\":\"${message}\"}"
+  local platform="${3:-}"
+  local body
+  if [ -n "${platform}" ]; then
+    body="{\"build_id\":\"${BUILD_ID}\",\"phase\":\"${phase}\",\"platform\":\"${platform}\",\"message\":\"${message}\"}"
+  else
+    body="{\"build_id\":\"${BUILD_ID}\",\"phase\":\"${phase}\",\"message\":\"${message}\"}"
+  fi
   curl -s -X POST "${LOG_URL}" \
     -H "${AUTH_HEADER}" -H "${APIKEY_HEADER}" \
     -H "Content-Type: application/json" \
@@ -144,10 +150,10 @@ for platform in "${PLATFORM_LIST[@]}"; do
       ;;
   esac
 
-  append_log "export" "Exporting for ${platform} (preset: ${PRESET_NAME})..."
+  append_log "export" "Exporting for ${platform} (preset: ${PRESET_NAME})..." "${platform}"
 
   if timeout 600 godot --headless --export-release "${PRESET_NAME}" "${OUTPUT_FILE}" 2>&1; then
-    append_log "export" "Export successful for ${platform}"
+    append_log "export" "Export successful for ${platform}" "${platform}"
 
     # For web builds, zip the output directory
     if [ "${platform}" = "web" ] && [ -f "${OUTPUT_FILE}" ]; then
@@ -159,14 +165,14 @@ for platform in "${PLATFORM_LIST[@]}"; do
 
     # Phase 4: Upload
     if [ -f "${OUTPUT_FILE}" ]; then
-      append_log "upload" "Uploading ${ARTIFACT_NAME}..."
+      append_log "upload" "Uploading ${ARTIFACT_NAME}..." "${platform}"
       upload_artifact "${OUTPUT_FILE}" "${ARTIFACT_NAME}" "${platform}"
-      append_log "upload" "Uploaded ${ARTIFACT_NAME}"
+      append_log "upload" "Uploaded ${ARTIFACT_NAME}" "${platform}"
     else
-      append_log "export" "WARNING: Export file not found for ${platform}"
+      append_log "export" "WARNING: Export file not found for ${platform}" "${platform}"
     fi
   else
-    append_log "export" "Export FAILED for ${platform}"
+    append_log "export" "Export FAILED for ${platform}" "${platform}"
   fi
 done
 

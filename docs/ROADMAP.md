@@ -31,8 +31,9 @@ GodotForge follows a phased approach: MVP → Growth → Platform. Each phase bu
 - [x] Build runner orchestration on Railway
 - [x] Build queue management via Inngest
 - [x] `godot --headless --export-release` per platform
-- [ ] Visual build matrix: toggle Windows, Linux, macOS, Web, Android *(Sprint 4)*
-- [ ] Real-time build log streaming via Supabase Realtime *(Sprint 4)*
+- [x] Visual build matrix: toggle Windows, Linux, macOS, Web, Android *(Sprint 4)*
+- [x] Real-time build log streaming via Supabase Realtime *(Sprint 4)*
+- [x] Parallel builds: one container per platform via Inngest fan-out *(Sprint 4)*
 
 ### Milestone 1.4 — Deploy Pipeline (Weeks 7–9)
 - [ ] Artifact storage (S3-compatible) + download links
@@ -41,10 +42,10 @@ GodotForge follows a phased approach: MVP → Growth → Platform. Each phase bu
 - [ ] Credential encryption at rest for Steam/itch.io secrets
 
 ### Milestone 1.5 — Polish & Beta Prep (Weeks 9–10)
-- [ ] Build history view with status, duration, artifact links
-- [ ] README status badges (build passing/failing)
-- [ ] Webhook triggers: auto-build on push, PR, or tag creation
-- [ ] Manual trigger button in dashboard
+- [x] Build history view with status, duration, artifact links
+- [x] README status badges (build passing/failing) *(Sprint 4)*
+- [x] Webhook triggers: auto-build on push, PR, or tag creation
+- [x] Manual trigger button in dashboard
 - [ ] Stripe integration: Starter (free) + Indie ($19/mo) tiers
 - [ ] Landing page updates, waitlist → beta access conversion
 

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import Link from "next/link";
 
 export default async function BuildsPage() {
   const supabase = await createClient();
@@ -30,9 +31,10 @@ export default async function BuildsPage() {
       ) : (
         <div className="space-y-2">
           {builds.map((build) => (
-            <div
+            <Link
               key={build.id}
-              className="flex items-center gap-4 p-4 bg-gf-card border border-gf-border rounded-xl"
+              href={`/dashboard/builds/${build.id}`}
+              className="flex items-center gap-4 p-4 bg-gf-card border border-gf-border rounded-xl hover:border-gf-border-hover transition-colors"
             >
               <div
                 className={`w-3 h-3 rounded-full ${
@@ -61,7 +63,7 @@ export default async function BuildsPage() {
                   ? `${Math.floor(build.duration_seconds / 60)}m ${build.duration_seconds % 60}s`
                   : "—"}
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       )}

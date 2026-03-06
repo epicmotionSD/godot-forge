@@ -93,17 +93,21 @@
 
 ---
 
-## Sprint 4 — Live Logs & Multi-Platform (April 30 – May 14)
+## Sprint 4 — Live Logs & Multi-Platform (Completed)
 
 **Goal:** Real-time build logs and parallel multi-platform builds.
 
-- [ ] Supabase Realtime: stream build_logs to dashboard
-- [ ] Log viewer component with phase indicators (clone/import/export/deploy)
-- [ ] Visual build matrix: toggle platforms in project settings
-- [ ] Parallel builds: one container per platform
-- [ ] macOS and Android export support
-- [ ] Artifact download links in build detail view
-- [ ] README status badges (build passing/failing)
+- [x] Supabase Realtime: stream build_logs to dashboard (hooks: use-build-logs, use-build-status)
+- [x] Log viewer component with phase indicators (clone/import/export/upload) + auto-scroll
+- [x] Visual build matrix: toggle platforms in project settings (platform matrix toggle + trigger switches)
+- [x] Parallel builds: one container per platform (Inngest fan-out, Railway per-platform containers)
+- [x] macOS and Android export support (platform matrix + Dockerfile presets)
+- [x] Artifact download links in build detail view (build detail page with live status + artifacts grid)
+- [x] README status badges (SVG badge API: /api/badges/[projectId])
+- [x] Build detail page with real-time logs + artifact downloads
+- [x] Clickable build rows in project detail and builds list pages
+- [x] Project settings API (PATCH /api/projects/[id]) with platform validation
+- [x] Docker build.sh updated: per-platform log tagging
 
 ---
 

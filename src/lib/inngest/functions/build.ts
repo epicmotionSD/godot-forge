@@ -13,6 +13,65 @@ function getServiceClient() {
   );
 }
 
+/**
+ * Run a single platform build: start container, poll, cleanup.
+ * Returns the platform result status.
+ */
+async function runPlatformBuild(
+  step: Parameters<Parameters<typeof inngest.createFunction>[2]>[0]["step"],
+  opts: {
+    buildId: string;
+    platform: string;
+    repoUrl: string;
+    commitSha: string;
+    projectPath: string;
+  }
+) {
+  const { buildId, platform, repoUrl, commitSha, projectPath } = opts;
+
+  const deployment = await step.run(
+    `start-container-${platform}`,
+    async () => {
+      return await startBuildContainer({
+        buildId,
+        repoUrl,
+        commitSha,
+        projectPath,
+        platforms: [platform],
+      });
+    }
+  );
+
+  const status = await step.run(
+    `poll-${platform}`,
+    async () => {
+      const maxAttempts = 40;
+      const pollInterval = 30_000;
+
+      for (let i = 0; i < maxAttempts; i++) {
+        await new Promise((resolve) => setTimeout(resolve, pollInterval));
+
+        const { status } = await getDeploymentStatus(deployment.deploymentId);
+
+        if (status === "SUCCESS" || status === "REMOVED") return "success";
+        if (status === "FAILED" || status === "CRASHED") return "failed";
+      }
+
+      return "failed"; // timeout
+    }
+  );
+
+  await step.run(`cleanup-${platform}`, async () => {
+    try {
+      await deleteBuildService(deployment.serviceId);
+    } catch {
+      // Non-critical
+    }
+  });
+
+  return { platform, status };
+}
+
 export const buildFunction = inngest.createFunction(
   {
     id: "godotforge-build",
@@ -49,57 +108,33 @@ export const buildFunction = inngest.createFunction(
         .eq("id", build_id);
     });
 
-    // Step 3: Start Railway container
-    const deployment = await step.run("start-container", async () => {
-      const project = build.projects as {
-        repo_url: string;
-        project_path: string;
-      };
+    // Step 3: Fan out — one container per platform, run in parallel
+    const platforms: string[] = build.platforms?.length
+      ? build.platforms
+      : ["linux"];
 
-      return await startBuildContainer({
-        buildId: build_id,
-        repoUrl: project.repo_url,
-        commitSha: build.commit_sha || "",
-        projectPath: project.project_path || ".",
-        platforms: build.platforms || ["linux"],
-      });
-    });
+    const project = build.projects as {
+      repo_url: string;
+      project_path: string;
+    };
 
-    // Step 4: Poll for completion (check every 30s, up to 20 minutes)
-    const finalStatus = await step.run("wait-for-completion", async () => {
-      const maxAttempts = 40;
-      const pollInterval = 30_000;
+    const results = await Promise.all(
+      platforms.map((platform) =>
+        runPlatformBuild(step, {
+          buildId: build_id,
+          platform,
+          repoUrl: project.repo_url,
+          commitSha: build.commit_sha || "",
+          projectPath: project.project_path || ".",
+        })
+      )
+    );
 
-      for (let i = 0; i < maxAttempts; i++) {
-        await new Promise((resolve) => setTimeout(resolve, pollInterval));
+    // Step 4: Aggregate results — overall success only if all platforms passed
+    const allSucceeded = results.every((r) => r.status === "success");
+    const finalStatus = allSucceeded ? "success" : "failed";
 
-        const { status } = await getDeploymentStatus(deployment.deploymentId);
-
-        // Railway deployment statuses
-        if (status === "SUCCESS" || status === "REMOVED") {
-          return "success";
-        }
-        if (status === "FAILED" || status === "CRASHED") {
-          return "failed";
-        }
-        // DEPLOYING, BUILDING, INITIALIZING — keep polling
-      }
-
-      return "failed"; // timeout
-    });
-
-    // Step 5: Clean up Railway service
-    await step.run("cleanup", async () => {
-      try {
-        await deleteBuildService(deployment.serviceId);
-      } catch {
-        // Non-critical — service will idle on Railway
-      }
-    });
-
-    // Step 6: Finalize build status
-    // Note: The container itself updates the build record with artifacts,
-    // but we set a fallback here in case the container crashed before updating
+    // Step 5: Finalize build status
     await step.run("finalize", async () => {
       const { data: currentBuild } = await supabase
         .from("builds")
@@ -107,7 +142,7 @@ export const buildFunction = inngest.createFunction(
         .eq("id", build_id)
         .single();
 
-      // Only update if still "running" (container didn't update it)
+      // Only update if still "running" (container didn't already update it)
       if (currentBuild?.status === "running") {
         await supabase
           .from("builds")
@@ -119,6 +154,6 @@ export const buildFunction = inngest.createFunction(
       }
     });
 
-    return { build_id, status: finalStatus };
+    return { build_id, status: finalStatus, platforms: results };
   }
 );
