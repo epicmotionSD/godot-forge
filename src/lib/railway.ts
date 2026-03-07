@@ -47,7 +47,8 @@ export async function startBuildContainer(opts: {
   const tag = opts.godotVersion || "4.3";
   const builderImage = process.env.GODOT_BUILDER_IMAGE || `ghcr.io/epicmotionsd/godot-builder:${tag}`;
 
-  // Create a service for this build
+  // Create a service for this build (include platform to avoid name collisions)
+  const platform = opts.platforms[0] || 'default';
   const createResult = await gql(
     `mutation($input: ServiceCreateInput!) {
       serviceCreate(input: $input) { id }
@@ -55,7 +56,7 @@ export async function startBuildContainer(opts: {
     {
       input: {
         projectId,
-        name: `build-${opts.buildId.slice(0, 8)}`,
+        name: `build-${opts.buildId.slice(0, 8)}-${platform}`,
       },
     }
   );
@@ -75,15 +76,15 @@ export async function startBuildContainer(opts: {
     }
   );
 
-  // Set environment variables for the build
+  // Set environment variables for the build (trim to strip \r\n from Vercel env vars)
   const envVars: Record<string, string> = {
     BUILD_ID: opts.buildId,
     REPO_URL: opts.repoUrl,
     COMMIT_SHA: opts.commitSha,
     PROJECT_PATH: opts.projectPath,
     PLATFORMS: opts.platforms.join(","),
-    SUPABASE_URL: process.env.SUPABASE_URL!,
-    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    SUPABASE_URL: process.env.SUPABASE_URL!.trim(),
+    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY!.trim(),
   };
 
   if (opts.githubToken) {
