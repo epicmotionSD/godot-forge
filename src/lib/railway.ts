@@ -90,22 +90,24 @@ export async function startBuildContainer(opts: {
     envVars.GITHUB_TOKEN = opts.githubToken;
   }
 
-  for (const [name, value] of Object.entries(envVars)) {
-    await gql(
-      `mutation($input: VariableUpsertInput!) {
-        variableUpsert(input: $input)
-      }`,
-      {
-        input: {
-          projectId,
-          environmentId,
-          serviceId,
-          name,
-          value,
-        },
-      }
-    );
-  }
+  await Promise.all(
+    Object.entries(envVars).map(([name, value]) =>
+      gql(
+        `mutation($input: VariableUpsertInput!) {
+          variableUpsert(input: $input)
+        }`,
+        {
+          input: {
+            projectId,
+            environmentId,
+            serviceId,
+            name,
+            value,
+          },
+        }
+      )
+    )
+  );
 
   // Trigger deployment via redeploy (deploymentTriggerCreate doesn't work for image-based services)
   await gql(
@@ -116,7 +118,7 @@ export async function startBuildContainer(opts: {
   );
 
   // Wait briefly then fetch the deployment ID
-  await new Promise((r) => setTimeout(r, 2000));
+  await new Promise((r) => setTimeout(r, 1000));
   const deploymentsResult = await gql(
     `query($input: DeploymentListInput!) {
       deployments(input: $input) { edges { node { id status } } }
