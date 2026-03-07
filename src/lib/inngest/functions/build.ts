@@ -57,7 +57,8 @@ async function runPlatformBuild(
 
         const { status } = await getDeploymentStatus(deployment.deploymentId);
 
-        if (status === "SUCCESS" || status === "REMOVED") return "success";
+        // SLEEPING: container ran and went idle (sleepApplication: true on free tier)
+        if (status === "SUCCESS" || status === "REMOVED" || status === "SLEEPING") return "success";
         if (status === "FAILED" || status === "CRASHED") return "failed";
       }
 

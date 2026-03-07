@@ -107,22 +107,30 @@ export async function startBuildContainer(opts: {
     );
   }
 
-  // Trigger deployment
-  const deployResult = await gql(
-    `mutation($input: DeploymentTriggerInput!) {
-      deploymentTriggerCreate(input: $input) { id }
+  // Trigger deployment via redeploy (deploymentTriggerCreate doesn't work for image-based services)
+  await gql(
+    `mutation($environmentId: String!, $serviceId: String!) {
+      serviceInstanceRedeploy(environmentId: $environmentId, serviceId: $serviceId)
     }`,
-    {
-      input: {
-        serviceId,
-        environmentId,
-      },
-    }
+    { environmentId, serviceId }
   );
+
+  // Wait briefly then fetch the deployment ID
+  await new Promise((r) => setTimeout(r, 2000));
+  const deploymentsResult = await gql(
+    `query($input: DeploymentListInput!) {
+      deployments(input: $input) { edges { node { id status } } }
+    }`,
+    { input: { serviceId, environmentId } }
+  );
+  const latestDeployment = deploymentsResult.deployments.edges[0]?.node;
+  if (!latestDeployment) {
+    throw new Error("No deployment found after serviceInstanceRedeploy");
+  }
 
   return {
     serviceId,
-    deploymentId: deployResult.deploymentTriggerCreate.id,
+    deploymentId: latestDeployment.id,
   };
 }
 
