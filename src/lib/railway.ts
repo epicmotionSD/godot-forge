@@ -40,6 +40,7 @@ export async function startBuildContainer(opts: {
   projectPath: string;
   platforms: string[];
   godotVersion?: string;
+  githubToken?: string;
 }): Promise<RailwayDeployResult> {
   const projectId = process.env.RAILWAY_PROJECT_ID!;
   const environmentId = process.env.RAILWAY_ENVIRONMENT_ID!;
@@ -60,7 +61,7 @@ export async function startBuildContainer(opts: {
   );
   const serviceId = createResult.serviceCreate.id;
 
-  // Set the Docker image source
+  // Set the Docker image source (sleepApplication required on Railway Free Tier)
   await gql(
     `mutation($id: String!, $input: ServiceInstanceUpdateInput!) {
       serviceInstanceUpdate(serviceId: $id, input: $input)
@@ -69,6 +70,7 @@ export async function startBuildContainer(opts: {
       id: serviceId,
       input: {
         source: { image: builderImage },
+        sleepApplication: true,
       },
     }
   );
@@ -83,6 +85,10 @@ export async function startBuildContainer(opts: {
     SUPABASE_URL: process.env.SUPABASE_URL!,
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY!,
   };
+
+  if (opts.githubToken) {
+    envVars.GITHUB_TOKEN = opts.githubToken;
+  }
 
   for (const [name, value] of Object.entries(envVars)) {
     await gql(

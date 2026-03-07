@@ -83,7 +83,11 @@ update_build_status "running" ",\"started_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\
 
 # Phase 1: Clone
 append_log "clone" "Cloning repository..."
-git clone --depth 1 "${REPO_URL}" "${REPO_DIR}" 2>&1
+CLONE_URL="${REPO_URL}"
+if [ -n "${GITHUB_TOKEN:-}" ]; then
+  CLONE_URL=$(echo "${REPO_URL}" | sed "s|https://github.com/|https://x-access-token:${GITHUB_TOKEN}@github.com/|")
+fi
+git clone --depth 1 "${CLONE_URL}" "${REPO_DIR}" 2>&1
 if [ -n "${COMMIT_SHA}" ] && [ "${COMMIT_SHA}" != "null" ]; then
   cd "${REPO_DIR}"
   git fetch --depth 1 origin "${COMMIT_SHA}" 2>&1 || true

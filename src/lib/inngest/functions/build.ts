@@ -26,9 +26,10 @@ async function runPlatformBuild(
     commitSha: string;
     projectPath: string;
     godotVersion?: string;
+    githubToken?: string;
   }
 ) {
-  const { buildId, platform, repoUrl, commitSha, projectPath, godotVersion } = opts;
+  const { buildId, platform, repoUrl, commitSha, projectPath, godotVersion, githubToken } = opts;
 
   const deployment = await step.run(
     `start-container-${platform}`,
@@ -40,6 +41,7 @@ async function runPlatformBuild(
         projectPath,
         platforms: [platform],
         godotVersion,
+        githubToken,
       });
     }
   );
@@ -90,7 +92,7 @@ export const buildFunction = inngest.createFunction(
     const { build_id } = event.data;
     const supabase = getServiceClient();
 
-    // Step 1: Fetch the build record and project details
+    // Step 1: Fetch the build record, project details, and user's GitHub token
     const build = await step.run("fetch-build", async () => {
       const { data, error } = await supabase
         .from("builds")
@@ -99,7 +101,15 @@ export const buildFunction = inngest.createFunction(
         .single();
 
       if (error || !data) throw new Error(`Build not found: ${build_id}`);
-      return data;
+
+      // Fetch the user's GitHub token for private repo access
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("github_token")
+        .eq("id", data.user_id)
+        .single();
+
+      return { ...data, github_token: profile?.github_token || null };
     });
 
     // Step 2: Mark as running
@@ -130,6 +140,7 @@ export const buildFunction = inngest.createFunction(
           commitSha: build.commit_sha || "",
           projectPath: project.project_path || ".",
           godotVersion: project.godot_version || undefined,
+          githubToken: build.github_token || undefined,
         })
       )
     );
