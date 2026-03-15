@@ -23,6 +23,9 @@ create table if not exists public.profiles (
   email text,
   github_token text,
   avatar_url text,
+  plan text not null default 'starter',
+  stripe_customer_id text,
+  stripe_subscription_id text,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );

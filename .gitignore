@@ -11,3 +11,4 @@ error.log
 out/
 *.tsbuildinfo
 next-env.d.ts
+.env*.local

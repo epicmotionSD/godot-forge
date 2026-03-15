@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { inngest } from "@/lib/inngest/client";
+import { getUserPlanUsage } from "@/lib/plan-usage";
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -30,6 +31,21 @@ export async function POST(request: NextRequest) {
 
   if (!project) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
+  }
+
+  // Plan enforcement
+  const usage = await getUserPlanUsage(user.id);
+  if (!usage.canStartBuild) {
+    return NextResponse.json(
+      { error: `Build minute limit reached (${usage.buildMinutesUsed}/${usage.plan.buildMinutesPerMonth} min). Upgrade your plan for more.` },
+      { status: 403 }
+    );
+  }
+  if (project.platforms.length > usage.platformLimit) {
+    return NextResponse.json(
+      { error: `Your ${usage.plan.name} plan allows ${usage.platformLimit} platforms per build. This project has ${project.platforms.length}.` },
+      { status: 403 }
+    );
   }
 
   // Create a build record

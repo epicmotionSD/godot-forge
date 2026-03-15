@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createHmac, timingSafeEqual } from "crypto";
 import { inngest } from "@/lib/inngest/client";
+import { getUserPlanUsage } from "@/lib/plan-usage";
 
 // Use service-role client — webhooks have no user session
 function getServiceClient() {
@@ -119,6 +120,12 @@ export async function POST(request: NextRequest) {
   if (!triggerType) {
     // Event received but this project doesn't trigger on it
     return NextResponse.json({ skipped: true });
+  }
+
+  // Plan enforcement — skip build if user is over limits
+  const usage = await getUserPlanUsage(project.user_id);
+  if (!usage.canStartBuild) {
+    return NextResponse.json({ skipped: true, reason: "build_minutes_exceeded" });
   }
 
   // Create a build record in queued status

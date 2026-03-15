@@ -51,21 +51,34 @@ export default function NewProjectPage() {
   const [name, setName] = useState("");
   const [platforms, setPlatforms] = useState<string[]>(["windows", "linux"]);
   const [creating, setCreating] = useState(false);
+  const [planError, setPlanError] = useState("");
 
-  // Fetch repos on mount
+  // Fetch repos on mount + check plan limits
   useEffect(() => {
     async function load() {
       setReposLoading(true);
-      const res = await fetch("/api/github/repos");
-      if (!res.ok) {
-        const data = await res.json();
+      const [reposRes, usageRes] = await Promise.all([
+        fetch("/api/github/repos"),
+        fetch("/api/stripe/usage"),
+      ]);
+      if (!reposRes.ok) {
+        const data = await reposRes.json();
         setReposError(data.error || "Failed to load repos");
         setReposLoading(false);
         return;
       }
-      const data = await res.json();
+      const data = await reposRes.json();
       setRepos(data.repos);
       setReposLoading(false);
+
+      if (usageRes.ok) {
+        const usage = await usageRes.json();
+        if (!usage.canCreateProject) {
+          setPlanError(
+            `You've reached the ${usage.plan} plan limit of ${usage.maxProjects} projects. Upgrade to add more.`
+          );
+        }
+      }
     }
     load();
   }, []);
@@ -380,9 +393,15 @@ export default function NewProjectPage() {
           </div>
         </div>
 
+        {planError && (
+          <div className="mb-4 px-4 py-3 bg-gf-red/10 border border-gf-red/20 rounded-lg text-sm text-gf-red">
+            {planError}
+          </div>
+        )}
+
         <button
           onClick={handleCreate}
-          disabled={creating || !name.trim() || platforms.length === 0}
+          disabled={creating || !name.trim() || platforms.length === 0 || !!planError}
           className="w-full py-3 rounded-lg text-white text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
           style={{ background: "linear-gradient(135deg, #4d8fcc, #e05572)" }}
         >
