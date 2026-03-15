@@ -75,6 +75,7 @@ upload_artifact() {
   upload_response=$(curl -s -w "\n%{http_code}" -X POST "${STORAGE_URL}/${file_name}" \
     -H "${AUTH_HEADER}" -H "${APIKEY_HEADER}" \
     -H "Content-Type: application/octet-stream" \
+    -H "x-upsert: true" \
     --data-binary "@${file_path}")
 
   local upload_http
@@ -331,7 +332,6 @@ else
   echo "=== Build complete (${DURATION}s) ==="
 fi
 
-# Always exit 0 — Railway restarts containers on non-zero exit, creating
-# infinite crash loops for ephemeral build jobs.  Success/failure is
-# communicated via Supabase logs and artifacts, not the exit code.
-exit 0
+# Keep container alive so Railway doesn't restart it in a loop.
+# The orchestrator detects completion via Supabase artifacts and deletes the service.
+exec sleep infinity

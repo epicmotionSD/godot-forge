@@ -56,31 +56,27 @@ async function runPlatformBuild(
     async () => {
       const maxAttempts = 40;
       const pollInterval = 30_000;
-      let staleStatusPolls = 0;
-      let lastStatus: string | null = null;
 
       for (let i = 0; i < maxAttempts; i++) {
         await new Promise((resolve) => setTimeout(resolve, pollInterval));
 
-        const { status } = await getDeploymentStatus(deployment.deploymentId);
+        // Primary signal: artifact row in Supabase means the build succeeded.
+        const { data } = await supabase
+          .from("artifacts")
+          .select("id")
+          .eq("build_id", buildId)
+          .eq("platform", platform)
+          .limit(1);
 
-        if (status === lastStatus && status !== "SUCCESS" && status !== "SLEEPING") {
-          staleStatusPolls += 1;
-        } else {
-          staleStatusPolls = 0;
+        if (data && data.length > 0) {
+          return "success";
         }
-        lastStatus = status;
 
-        // If deployment remains in a non-terminal status for too long, fail fast.
-        if (staleStatusPolls >= 8) {
+        // Secondary: Railway status for early failure (image pull error, etc.)
+        const { status } = await getDeploymentStatus(deployment.deploymentId);
+        if (status === "REMOVED" || status === "FAILED" || status === "CRASHED") {
           return "failed";
         }
-
-        // Stop immediately on first terminal state to avoid restart churn.
-        if (status === "SUCCESS" || status === "SLEEPING") return "success";
-
-        if (status === "REMOVED") return "failed";
-        if (status === "FAILED" || status === "CRASHED") return "failed";
       }
 
       return "failed"; // timeout
@@ -105,26 +101,7 @@ async function runPlatformBuild(
   return {
     platform,
     status:
-      cleanupOk && status === "success"
-        ? (
-            await step.run(`verify-artifact-${platform}`, async () => {
-              const { data, error } = await supabase
-                .from("artifacts")
-                .select("id")
-                .eq("build_id", buildId)
-                .eq("platform", platform)
-                .limit(1);
-
-              if (error) {
-                return false;
-              }
-
-              return !!(data && data.length > 0);
-            })
-          )
-          ? "success"
-          : "failed"
-        : "failed",
+      cleanupOk && status === "success" ? "success" : "failed",
   };
 }
 

@@ -49,7 +49,7 @@ export async function startBuildContainer(opts: {
 
   const projectId = process.env.RAILWAY_PROJECT_ID!;
   const environmentId = process.env.RAILWAY_ENVIRONMENT_ID!;
-  const tag = opts.godotVersion || "4.3";
+  const tag = opts.godotVersion ? `${opts.godotVersion}-v2` : "4.3-v2";
   const builderImage = process.env.GODOT_BUILDER_IMAGE || `ghcr.io/epicmotionsd/godot-builder:${tag}`;
 
   // Create a service for this build (include platform to avoid name collisions)
