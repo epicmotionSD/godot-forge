@@ -13,6 +13,10 @@ function getServiceClient() {
   );
 }
 
+function isGitHubRepoUrl(repoUrl: string): boolean {
+  return /^https:\/\/github\.com\//i.test(repoUrl.trim());
+}
+
 /**
  * Run a single platform build: start container, poll, cleanup.
  * Returns the platform result status.
@@ -30,6 +34,7 @@ async function runPlatformBuild(
   }
 ) {
   const { buildId, platform, repoUrl, commitSha, projectPath, godotVersion, githubToken } = opts;
+  const supabase = getServiceClient();
 
   const deployment = await step.run(
     `start-container-${platform}`,
@@ -51,14 +56,30 @@ async function runPlatformBuild(
     async () => {
       const maxAttempts = 40;
       const pollInterval = 30_000;
+      let staleStatusPolls = 0;
+      let lastStatus: string | null = null;
 
       for (let i = 0; i < maxAttempts; i++) {
         await new Promise((resolve) => setTimeout(resolve, pollInterval));
 
         const { status } = await getDeploymentStatus(deployment.deploymentId);
 
-        // SLEEPING: container ran and went idle (sleepApplication: true on free tier)
-        if (status === "SUCCESS" || status === "REMOVED" || status === "SLEEPING") return "success";
+        if (status === lastStatus && status !== "SUCCESS" && status !== "SLEEPING") {
+          staleStatusPolls += 1;
+        } else {
+          staleStatusPolls = 0;
+        }
+        lastStatus = status;
+
+        // If deployment remains in a non-terminal status for too long, fail fast.
+        if (staleStatusPolls >= 8) {
+          return "failed";
+        }
+
+        // Stop immediately on first terminal state to avoid restart churn.
+        if (status === "SUCCESS" || status === "SLEEPING") return "success";
+
+        if (status === "REMOVED") return "failed";
         if (status === "FAILED" || status === "CRASHED") return "failed";
       }
 
@@ -66,21 +87,51 @@ async function runPlatformBuild(
     }
   );
 
-  await step.run(`cleanup-${platform}`, async () => {
-    try {
-      await deleteBuildService(deployment.serviceId);
-    } catch {
-      // Non-critical
+  const cleanupOk = await step.run(`cleanup-${platform}`, async () => {
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        await deleteBuildService(deployment.serviceId);
+        return true;
+      } catch {
+        if (attempt < 3) {
+          await new Promise((resolve) => setTimeout(resolve, 2_000));
+        }
+      }
     }
+
+    return false;
   });
 
-  return { platform, status };
+  return {
+    platform,
+    status:
+      cleanupOk && status === "success"
+        ? (
+            await step.run(`verify-artifact-${platform}`, async () => {
+              const { data, error } = await supabase
+                .from("artifacts")
+                .select("id")
+                .eq("build_id", buildId)
+                .eq("platform", platform)
+                .limit(1);
+
+              if (error) {
+                return false;
+              }
+
+              return !!(data && data.length > 0);
+            })
+          )
+          ? "success"
+          : "failed"
+        : "failed",
+  };
 }
 
 export const buildFunction = inngest.createFunction(
   {
     id: "godotforge-build",
-    retries: 1,
+    retries: 0,
     cancelOn: [
       {
         event: "build/cancelled",
@@ -90,85 +141,167 @@ export const buildFunction = inngest.createFunction(
   },
   { event: "build/requested" },
   async ({ event, step }) => {
-    const { build_id } = event.data;
-    const supabase = getServiceClient();
-
-    // Step 1: Fetch the build record, project details, and user's GitHub token
-    const build = await step.run("fetch-build", async () => {
-      const { data, error } = await supabase
-        .from("builds")
-        .select("*, projects(repo_url, project_path, godot_version)")
-        .eq("id", build_id)
-        .single();
-
-      if (error || !data) throw new Error(`Build not found: ${build_id}`);
-
-      // Fetch the user's GitHub token for private repo access
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("github_token")
-        .eq("id", data.user_id)
-        .single();
-
-      return { ...data, github_token: profile?.github_token || null };
-    });
-
-    // Step 2: Mark as running
-    await step.run("mark-running", async () => {
-      await supabase
-        .from("builds")
-        .update({ status: "running", started_at: new Date().toISOString() })
-        .eq("id", build_id);
-    });
-
-    // Step 3: Fan out — one container per platform, run in parallel
-    const platforms: string[] = build.platforms?.length
-      ? build.platforms
-      : ["linux"];
-
-    const project = build.projects as {
-      repo_url: string;
-      project_path: string;
-      godot_version: string | null;
+    const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
+      return await Promise.race([
+        promise,
+        new Promise<T>((_, reject) =>
+          setTimeout(() => reject(new Error(`Timed out after ${timeoutMs}ms`)), timeoutMs)
+        ),
+      ]);
     };
 
-    const results = await Promise.all(
-      platforms.map((platform) =>
-        runPlatformBuild(step, {
-          buildId: build_id,
-          platform,
-          repoUrl: project.repo_url,
-          commitSha: build.commit_sha || "",
-          projectPath: project.project_path || ".",
-          godotVersion: project.godot_version || undefined,
-          githubToken: build.github_token || undefined,
-        })
-      )
-    );
+    const { build_id } = event.data;
+    const supabase = getServiceClient();
+    let finalStatus: "success" | "failed" = "failed";
+    let shouldFinalize = false;
+    let results: Array<{ platform: string; status: string }> = [];
 
-    // Step 4: Aggregate results — overall success only if all platforms passed
-    const allSucceeded = results.every((r) => r.status === "success");
-    const finalStatus = allSucceeded ? "success" : "failed";
+    try {
+      // Step 1: Fetch the build record, project details, and user's GitHub token
+      const build = await step.run("fetch-build", async () => {
+        const { data, error } = await supabase
+          .from("builds")
+          .select("*, projects(repo_url, project_path, godot_version)")
+          .eq("id", build_id)
+          .single();
 
-    // Step 5: Finalize build status
-    await step.run("finalize", async () => {
-      const { data: currentBuild } = await supabase
-        .from("builds")
-        .select("status")
-        .eq("id", build_id)
-        .single();
+        if (error || !data) throw new Error(`Build not found: ${build_id}`);
 
-      // Only update if still "running" (container didn't already update it)
-      if (currentBuild?.status === "running") {
+        // Fetch the user's GitHub token for private repo access
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("github_token")
+          .eq("id", data.user_id)
+          .single();
+
+        return { ...data, github_token: profile?.github_token || null };
+      });
+
+      const project = build.projects as {
+        repo_url: string;
+        project_path: string;
+        godot_version: string | null;
+      };
+
+      // Preflight: fail immediately if GitHub token is required but missing.
+      if (isGitHubRepoUrl(project.repo_url) && !build.github_token) {
+        await step.run("preflight-missing-github-token", async () => {
+          await supabase
+            .from("build_logs")
+            .insert({
+              build_id,
+              phase: "clone",
+              message: "Missing GitHub token for GitHub repository build",
+            });
+
+          await supabase
+            .from("builds")
+            .update({
+              status: "failed",
+              started_at: new Date().toISOString(),
+              finished_at: new Date().toISOString(),
+            })
+            .eq("id", build_id)
+            .in("status", ["queued", "running"]);
+        });
+
+        return {
+          build_id,
+          status: "failed" as const,
+          reason: "missing_github_token",
+          platforms: [],
+        };
+      }
+
+      // Step 2: Mark as running
+      await step.run("mark-running", async () => {
         await supabase
           .from("builds")
-          .update({
-            status: finalStatus,
-            finished_at: new Date().toISOString(),
-          })
-          .eq("id", build_id);
+          .update({ status: "running", started_at: new Date().toISOString() })
+          .eq("id", build_id)
+          .in("status", ["queued", "running"]);
+      });
+
+      shouldFinalize = true;
+
+      // Step 3: Fan out — one container per platform, run in parallel
+      const requestedPlatforms: string[] = build.platforms?.length
+        ? build.platforms
+        : ["linux"];
+
+      const normalizedPlatforms = Array.from(
+        new Set(
+          requestedPlatforms
+            .map((platform) => platform?.trim().toLowerCase())
+            .filter(Boolean)
+        )
+      );
+
+      const platforms = normalizedPlatforms.length
+        ? normalizedPlatforms
+        : ["linux"];
+
+      results = await Promise.all(
+        platforms.map((platform) =>
+          withTimeout(
+            runPlatformBuild(step, {
+              buildId: build_id,
+              platform,
+              repoUrl: project.repo_url,
+              commitSha: build.commit_sha || "",
+              projectPath: project.project_path || ".",
+              godotVersion: project.godot_version || undefined,
+              githubToken: build.github_token || undefined,
+            }),
+            12 * 60_000
+          ).catch(() => ({ platform, status: "failed" as const }))
+        )
+      );
+
+      // Step 4: Aggregate results — overall success only if all platforms passed
+      const allSucceeded = results.every((r) => r.status === "success");
+      finalStatus = allSucceeded ? "success" : "failed";
+    } catch {
+      finalStatus = "failed";
+      // Do NOT re-throw — allow finalization below to execute.
+    }
+
+    // Finalize: runs as a normal step OUTSIDE try/catch so it always executes.
+    if (shouldFinalize) {
+      try {
+        await step.run("finalize", async () => {
+          const { data: currentBuild } = await supabase
+            .from("builds")
+            .select("status")
+            .eq("id", build_id)
+            .single();
+
+          if (currentBuild?.status === "running") {
+            await supabase
+              .from("builds")
+              .update({
+                status: finalStatus,
+                finished_at: new Date().toISOString(),
+              })
+              .eq("id", build_id);
+          }
+        });
+      } catch {
+        // Fallback: direct Supabase call if step runner is dead
+        try {
+          await supabase
+            .from("builds")
+            .update({
+              status: "failed",
+              finished_at: new Date().toISOString(),
+            })
+            .eq("id", build_id)
+            .eq("status", "running");
+        } catch {
+          // Nothing more we can do
+        }
       }
-    });
+    }
 
     return { build_id, status: finalStatus, platforms: results };
   }
