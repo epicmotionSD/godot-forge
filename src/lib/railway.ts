@@ -83,23 +83,7 @@ export async function startBuildContainer(opts: {
     envVars.GITHUB_TOKEN = opts.githubToken;
   }
 
-  // Apply env vars in one mutation to avoid per-variable redeploy churn.
-  await gql(
-    `mutation($input: VariableCollectionUpsertInput!) {
-      variableCollectionUpsert(input: $input)
-    }`,
-    {
-      input: {
-        projectId,
-        environmentId,
-        serviceId,
-        skipDeploys: true,
-        variables: envVars,
-      },
-    }
-  );
-
-  // Set the image last; this should create a single deployment with all vars applied.
+  // Set the image first (does NOT trigger a deployment on its own).
   await gql(
     `mutation($id: String!, $input: ServiceInstanceUpdateInput!) {
       serviceInstanceUpdate(serviceId: $id, input: $input)
@@ -113,8 +97,24 @@ export async function startBuildContainer(opts: {
     }
   );
 
+  // Apply env vars WITHOUT skipDeploys so Railway creates a deployment
+  // with both the image and env vars already configured.
+  await gql(
+    `mutation($input: VariableCollectionUpsertInput!) {
+      variableCollectionUpsert(input: $input)
+    }`,
+    {
+      input: {
+        projectId,
+        environmentId,
+        serviceId,
+        variables: envVars,
+      },
+    }
+  );
+
   // Wait briefly then fetch the latest non-removed deployment ID.
-  await new Promise((r) => setTimeout(r, 3000));
+  await new Promise((r) => setTimeout(r, 5000));
   const deploymentsResult = await gql(
     `query($input: DeploymentListInput!) {
       deployments(input: $input) { edges { node { id status } } }
