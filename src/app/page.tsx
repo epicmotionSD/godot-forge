@@ -29,39 +29,39 @@ function WaitlistForm({ id }: { id: string }) {
   if (status === "success") {
     return (
       <div className="text-center p-4 bg-[rgba(61,220,132,0.08)] border border-[rgba(61,220,132,0.15)] rounded-[10px] text-[var(--accent-green)] font-semibold text-[15px] max-w-[460px] mx-auto">
-        🎯 You&apos;re on the list! We&apos;ll email you when the beta opens.
+        🎯 You&apos;re on the list! We&apos;ll email you when your invite is ready.
       </div>
     );
   }
 
   return (
-    <div>
-      <form onSubmit={handleSubmit} className="flex gap-2 max-w-[460px] mx-auto">
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@gamedev.com"
-          required
-          className="flex-1 px-[18px] py-[14px] bg-[var(--bg-elevated)] border border-[var(--border)] rounded-[10px] text-[var(--text-primary)] font-mono text-sm outline-none transition-colors focus:border-[var(--accent-blue)] placeholder:text-[var(--text-muted)]"
-        />
-        <button
-          type="submit"
-          disabled={status === "loading"}
-          className="px-7 py-[14px] bg-[var(--gradient-brand)] border-none rounded-[10px] text-white font-sans text-[15px] font-semibold cursor-pointer whitespace-nowrap transition-opacity hover:opacity-90 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{ background: "linear-gradient(135deg, #4d8fcc, #e05572)" }}
-        >
-          {status === "loading" ? "Joining..." : id === "hero" ? "Join Waitlist" : "Get Early Access"}
-        </button>
-      </form>
-      {id === "hero" && (
-        <p className="text-center text-[13px] text-[var(--text-muted)] mt-3">
-          Free beta access · Indie tier free for 6 months · No spam
-        </p>
-      )}
-    </div>
+    <form onSubmit={handleSubmit} className="flex gap-2 max-w-[460px] mx-auto">
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="you@gamedev.com"
+        required
+        className="flex-1 px-[18px] py-[14px] bg-[var(--bg-elevated)] border border-[var(--border)] rounded-[10px] text-[var(--text-primary)] font-mono text-sm outline-none transition-colors focus:border-[var(--accent-blue)] placeholder:text-[var(--text-muted)]"
+      />
+      <button
+        type="submit"
+        disabled={status === "loading"}
+        className="px-7 py-[14px] border-none rounded-[10px] text-white font-sans text-[15px] font-semibold cursor-pointer whitespace-nowrap transition-opacity hover:opacity-90 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+        style={{ background: "linear-gradient(135deg, #4d8fcc, #e05572)" }}
+      >
+        {status === "loading" ? "Joining..." : id === "hero" ? "Get Notified" : "Get Early Access"}
+      </button>
+    </form>
   );
 }
+
+const STATS = [
+  { value: "6", label: "Builds shipped" },
+  { value: "3", label: "Platforms" },
+  { value: "2", label: "Storefronts" },
+  { value: "<2m", label: "Avg build time" },
+];
 
 export default function LandingPage() {
   return (
@@ -85,22 +85,28 @@ export default function LandingPage() {
           </Link>
           <div className="flex items-center gap-3">
             <Link
+              href="/dashboard"
+              className="font-mono text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors no-underline"
+            >
+              Dashboard
+            </Link>
+            <Link
               href="/login"
               className="font-mono text-xs font-semibold text-[var(--accent-blue)] hover:text-[var(--text-primary)] transition-colors no-underline"
             >
               Sign In
             </Link>
             <span className="font-mono text-[11px] font-semibold text-[var(--accent-green)] bg-[rgba(61,220,132,0.08)] border border-[rgba(61,220,132,0.15)] px-3 py-1 rounded-full tracking-[0.5px]">
-              BETA COMING SOON
+              OPEN BETA
             </span>
           </div>
         </nav>
 
         {/* Hero */}
         <section className="py-20 pb-[60px] text-center">
-          <div className="inline-flex items-center gap-2 font-mono text-xs font-semibold text-[var(--accent-red)] bg-[rgba(224,85,114,0.08)] border border-[rgba(224,85,114,0.15)] px-4 py-1.5 rounded-3xl tracking-[0.3px] mb-7">
-            <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-red)] animate-pulse" />
-            W4 Build is dead. The replacement is here.
+          <div className="inline-flex items-center gap-2 font-mono text-xs font-semibold text-[var(--accent-green)] bg-[rgba(61,220,132,0.08)] border border-[rgba(61,220,132,0.15)] px-4 py-1.5 rounded-3xl tracking-[0.3px] mb-7">
+            <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-green)] animate-pulse" />
+            Live now — building and deploying Godot games
           </div>
           <h1 className="text-[clamp(36px,6vw,52px)] font-bold leading-[1.1] tracking-[-1.5px] mb-5">
             Ship your Godot game.
@@ -114,7 +120,36 @@ export default function LandingPage() {
             Connect your repo, pick your platforms, deploy to Steam and itch.io.
             No Docker. No config files. No DevOps degree.
           </p>
-          <WaitlistForm id="hero" />
+
+          {/* Primary CTA */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-4">
+            <Link
+              href="/login"
+              className="px-8 py-[14px] rounded-[10px] text-white font-sans text-[15px] font-semibold no-underline transition-opacity hover:opacity-90 active:scale-[0.98]"
+              style={{ background: "linear-gradient(135deg, #4d8fcc, #e05572)" }}
+            >
+              Start Building Free →
+            </Link>
+            <a
+              href="#waitlist"
+              className="px-8 py-[14px] rounded-[10px] text-[var(--text-secondary)] bg-[var(--bg-elevated)] border border-[var(--border)] font-sans text-[15px] font-semibold no-underline transition-colors hover:border-[var(--border-hover)] hover:text-[var(--text-primary)]"
+            >
+              Join Waitlist
+            </a>
+          </div>
+          <p className="text-[13px] text-[var(--text-muted)]">
+            Free tier · No credit card required
+          </p>
+
+          {/* Social proof stats */}
+          <div className="flex items-center justify-center gap-8 mt-12 py-6 border-y border-[var(--border)]">
+            {STATS.map((s) => (
+              <div key={s.label} className="text-center">
+                <div className="text-2xl font-bold tracking-[-0.5px]">{s.value}</div>
+                <div className="text-[11px] text-[var(--text-muted)] font-mono tracking-[0.5px] mt-0.5">{s.label}</div>
+              </div>
+            ))}
+          </div>
         </section>
 
         {/* Problem / Solution */}
@@ -157,18 +192,37 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* How it works */}
+        <section className="py-[60px]">
+          <div className="font-mono text-[11px] font-bold tracking-[1.5px] text-[var(--accent-blue)] mb-3">HOW IT WORKS</div>
+          <h2 className="text-[28px] font-bold tracking-[-0.5px] mb-10">Three steps to shipped</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {[
+              { step: "01", name: "Connect", desc: "Sign in with GitHub. Pick a repo. GodotForge auto-detects your project.godot, engine version, and export presets." },
+              { step: "02", name: "Configure", desc: "Toggle your target platforms. Set up Steam depot mapping or itch.io game slug. Push code or hit the build button." },
+              { step: "03", name: "Ship", desc: "Parallel builds run per platform. Artifacts upload automatically. Builds deploy to Steam and itch.io on completion." },
+            ].map((s) => (
+              <div key={s.step} className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 hover:border-[var(--border-hover)] transition-colors">
+                <div className="font-mono text-[11px] font-bold tracking-[1px] text-[var(--accent-blue)] mb-3">{s.step}</div>
+                <div className="text-[15px] font-semibold mb-1.5">{s.name}</div>
+                <div className="text-[13px] text-[var(--text-secondary)] leading-relaxed">{s.desc}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+
         {/* Features */}
         <section className="py-[60px]">
-          <div className="font-mono text-[11px] font-bold tracking-[1.5px] text-[var(--accent-blue)] mb-3">MVP FEATURES</div>
+          <div className="font-mono text-[11px] font-bold tracking-[1.5px] text-[var(--accent-green)] mb-3">LIVE NOW</div>
           <h2 className="text-[28px] font-bold tracking-[-0.5px] mb-10">Everything you need to ship</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {[
               { icon: "🔍", name: "Auto-Detect Everything", desc: "Connect your repo and GodotForge finds your project.godot, reads your export presets, and detects your engine version automatically." },
               { icon: "🖥️", name: "Visual Build Matrix", desc: "Toggle Windows, Linux, macOS, Android, and Web exports from a dashboard. No config files. Parallel builds across platforms." },
               { icon: "📡", name: "Real-Time Build Logs", desc: "Watch your builds stream live. See exactly what's happening at each phase: clone, import, export, upload. Debug failures instantly." },
-              { icon: "🚂", name: "Deploy to Steam", desc: "One-click Steam deployment via SteamCMD. Configure your app ID and depot mappings once, then every build auto-deploys." },
+              { icon: "🚂", name: "Deploy to Steam", desc: "Steam deployment via SteamCMD. Configure your app ID and depot mappings — every build auto-deploys. Credentials encrypted at rest." },
               { icon: "🎮", name: "Deploy to itch.io", desc: "Butler integration built-in. Enter your API key and game slug — builds go straight to your itch.io page with proper channel mapping." },
-              { icon: "⚡", name: "Build on Push", desc: "GitHub and GitLab webhooks trigger builds automatically. Push to main? Build. Create a tag? Release build. You set the rules." },
+              { icon: "⚡", name: "Build on Push", desc: "GitHub webhooks trigger builds automatically. Push to main? Build. Create a tag? Release build. Open a PR? Validation build." },
             ].map((f) => (
               <div key={f.name} className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 hover:border-[var(--border-hover)] transition-colors">
                 <div className="text-[22px] mb-3">{f.icon}</div>
@@ -193,6 +247,12 @@ export default function LandingPage() {
                   <span className="text-[var(--accent-green)] text-sm">✓</span> {f}
                 </div>
               ))}
+              <Link
+                href="/login"
+                className="mt-5 block text-center px-6 py-3 rounded-[10px] bg-[var(--bg-elevated)] border border-[var(--border)] text-[var(--text-primary)] font-semibold text-sm no-underline transition-colors hover:border-[var(--border-hover)]"
+              >
+                Get Started Free
+              </Link>
             </div>
             <div className="bg-[var(--bg-card)] border border-[rgba(77,143,204,0.3)] rounded-xl p-7 relative" style={{ background: "linear-gradient(135deg, rgba(77,143,204,0.04), var(--bg-card))" }}>
               <div className="absolute -top-px right-5 text-white font-mono text-[9px] font-bold tracking-[1px] px-3 py-1 rounded-b-md" style={{ background: "linear-gradient(135deg, #4d8fcc, #e05572)" }}>MOST POPULAR</div>
@@ -204,15 +264,34 @@ export default function LandingPage() {
                   <span className="text-[var(--accent-green)] text-sm">✓</span> {f}
                 </div>
               ))}
+              <Link
+                href="/login"
+                className="mt-5 block text-center px-6 py-3 rounded-[10px] text-white font-semibold text-sm no-underline transition-opacity hover:opacity-90"
+                style={{ background: "linear-gradient(135deg, #4d8fcc, #e05572)" }}
+              >
+                Start Indie Plan
+              </Link>
             </div>
           </div>
         </section>
 
-        {/* Bottom CTA */}
-        <section className="py-20 text-center">
-          <h2 className="text-[28px] font-bold tracking-[-0.5px] mb-3">Beta launches in 8 weeks</h2>
-          <p className="text-[var(--text-secondary)] mb-8 text-base">Join the waitlist for free early access and 6 months of Indie tier — on the house.</p>
-          <WaitlistForm id="cta" />
+        {/* Bottom CTA / Waitlist */}
+        <section id="waitlist" className="py-20 text-center">
+          <h2 className="text-[28px] font-bold tracking-[-0.5px] mb-3">Try the beta free today</h2>
+          <p className="text-[var(--text-secondary)] mb-8 text-base max-w-[480px] mx-auto">
+            Sign in with GitHub to start building immediately, or drop your email and we&apos;ll keep you posted on new features.
+          </p>
+          <div className="flex flex-col items-center gap-4">
+            <Link
+              href="/login"
+              className="px-8 py-[14px] rounded-[10px] text-white font-sans text-[15px] font-semibold no-underline transition-opacity hover:opacity-90 active:scale-[0.98]"
+              style={{ background: "linear-gradient(135deg, #4d8fcc, #e05572)" }}
+            >
+              Sign In with GitHub →
+            </Link>
+            <div className="text-[13px] text-[var(--text-muted)] mb-2">or stay in the loop</div>
+            <WaitlistForm id="cta" />
+          </div>
         </section>
 
         {/* Footer */}

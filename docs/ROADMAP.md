@@ -51,8 +51,8 @@ GodotForge follows a phased approach: MVP → Growth → Platform. Each phase bu
 - [x] Build cancellation UI (cancel button on queued/running builds) *(Sprint 5)*
 - [x] Error handling: settings save failures with user-visible messages *(Sprint 5)*
 - [x] Vercel production env vars: all 9 configured (Supabase, Inngest, Railway)
-- [ ] Stripe integration: Starter (free) + Indie ($19/mo) tiers
-- [ ] Landing page updates, waitlist → beta access conversion
+- [x] Stripe integration: Starter (free) + Indie ($19/mo) tiers
+- [x] Landing page updates, waitlist → beta access conversion
 - [ ] **Dogfooding:** Internal test with Roadblocs (Godot 4.6 game) — requires GitHub push + export presets + Godot 4.6 Docker image
 
 ---

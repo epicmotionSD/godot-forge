@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "GodotForge — Managed CI/CD for Godot Engine",
     description:
-      "W4 Build is gone. GodotForge is the replacement. Automated builds and one-click deploy to Steam & itch.io.",
+      "Automated Godot builds with one-click deploy to Steam and itch.io. Free to start.",
     type: "website",
   },
   twitter: {
