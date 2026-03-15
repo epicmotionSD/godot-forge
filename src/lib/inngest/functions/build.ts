@@ -51,37 +51,40 @@ async function runPlatformBuild(
     }
   );
 
-  const status = await step.run(
-    `poll-${platform}`,
-    async () => {
-      const maxAttempts = 40;
-      const pollInterval = 30_000;
+  // Poll for completion using Inngest-native sleep to avoid Vercel timeout.
+  const maxAttempts = 40;
+  let status: string = "failed";
 
-      for (let i = 0; i < maxAttempts; i++) {
-        await new Promise((resolve) => setTimeout(resolve, pollInterval));
+  for (let i = 0; i < maxAttempts; i++) {
+    await step.sleep(`wait-${platform}-${i}`, "30s");
 
-        // Primary signal: artifact row in Supabase means the build succeeded.
-        const { data } = await supabase
-          .from("artifacts")
-          .select("id")
-          .eq("build_id", buildId)
-          .eq("platform", platform)
-          .limit(1);
+    const result = await step.run(`check-${platform}-${i}`, async () => {
+      // Primary signal: artifact row in Supabase means the build succeeded.
+      const { data } = await supabase
+        .from("artifacts")
+        .select("id")
+        .eq("build_id", buildId)
+        .eq("platform", platform)
+        .limit(1);
 
-        if (data && data.length > 0) {
-          return "success";
-        }
-
-        // Secondary: Railway status for early failure (image pull error, etc.)
-        const { status } = await getDeploymentStatus(deployment.deploymentId);
-        if (status === "REMOVED" || status === "FAILED" || status === "CRASHED") {
-          return "failed";
-        }
+      if (data && data.length > 0) {
+        return "success" as const;
       }
 
-      return "failed"; // timeout
+      // Secondary: Railway status for early failure (image pull error, etc.)
+      const { status } = await getDeploymentStatus(deployment.deploymentId);
+      if (status === "REMOVED" || status === "FAILED" || status === "CRASHED") {
+        return "failed" as const;
+      }
+
+      return "pending" as const;
+    });
+
+    if (result === "success" || result === "failed") {
+      status = result;
+      break;
     }
-  );
+  }
 
   const cleanupOk = await step.run(`cleanup-${platform}`, async () => {
     for (let attempt = 1; attempt <= 3; attempt++) {
@@ -118,15 +121,6 @@ export const buildFunction = inngest.createFunction(
   },
   { event: "build/requested" },
   async ({ event, step }) => {
-    const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
-      return await Promise.race([
-        promise,
-        new Promise<T>((_, reject) =>
-          setTimeout(() => reject(new Error(`Timed out after ${timeoutMs}ms`)), timeoutMs)
-        ),
-      ]);
-    };
-
     const { build_id } = event.data;
     const supabase = getServiceClient();
     let finalStatus: "success" | "failed" = "failed";
@@ -220,18 +214,15 @@ export const buildFunction = inngest.createFunction(
 
       results = await Promise.all(
         platforms.map((platform) =>
-          withTimeout(
-            runPlatformBuild(step, {
-              buildId: build_id,
-              platform,
-              repoUrl: project.repo_url,
-              commitSha: build.commit_sha || "",
-              projectPath: project.project_path || ".",
-              godotVersion: project.godot_version || undefined,
-              githubToken: build.github_token || undefined,
-            }),
-            12 * 60_000
-          ).catch(() => ({ platform, status: "failed" as const }))
+          runPlatformBuild(step, {
+            buildId: build_id,
+            platform,
+            repoUrl: project.repo_url,
+            commitSha: build.commit_sha || "",
+            projectPath: project.project_path || ".",
+            godotVersion: project.godot_version || undefined,
+            githubToken: build.github_token || undefined,
+          }).catch(() => ({ platform, status: "failed" as const }))
         )
       );
 
