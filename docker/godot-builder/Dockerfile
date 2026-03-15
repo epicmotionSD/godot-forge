@@ -36,6 +36,24 @@ RUN mkdir -p /root/.local/share/godot/export_templates/${GODOT_VERSION}.${GODOT_
     && mv /tmp/templates/templates/* /root/.local/share/godot/export_templates/${GODOT_VERSION}.${GODOT_RELEASE}/ \
     && rm -rf /tmp/templates /tmp/templates.tpz
 
+# Install SteamCMD
+RUN echo steam steam/question select "I AGREE" | debconf-set-selections \
+    && echo steam steam/license note '' | debconf-set-selections \
+    && dpkg --add-architecture i386 \
+    && apt-get update && apt-get install -y --no-install-recommends \
+       lib32gcc-s1 steamcmd \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -s /usr/games/steamcmd /usr/local/bin/steamcmd
+
+# Install Butler (itch.io)
+RUN mkdir -p /opt/butler \
+    && wget -q "https://broth.itch.ovh/butler/linux-amd64/LATEST/archive/default" \
+       -O /tmp/butler.zip \
+    && unzip /tmp/butler.zip -d /opt/butler \
+    && chmod +x /opt/butler/butler \
+    && ln -s /opt/butler/butler /usr/local/bin/butler \
+    && rm /tmp/butler.zip
+
 WORKDIR /build
 
 COPY build.sh /build/build.sh

@@ -320,6 +320,102 @@ for platform in "${PLATFORM_LIST[@]}"; do
   fi
 done
 
+# Phase 5: Deploy (optional — runs if credentials are provided)
+deploy_had_failure=0
+
+# Determine the single platform this container handled
+DEPLOY_PLATFORM="${PLATFORM:-}"
+if [ -z "${DEPLOY_PLATFORM}" ]; then
+  DEPLOY_PLATFORM=$(echo "${PLATFORMS}" | cut -d',' -f1 | xargs)
+fi
+
+# --- Steam Deploy via SteamCMD ---
+if [ -n "${DEPLOY_STEAM_APP_ID:-}" ] && [ -n "${DEPLOY_STEAM_USERNAME:-}" ] && [ -n "${DEPLOY_STEAM_PASSWORD:-}" ] && [ ${had_failure} -eq 0 ]; then
+  # Look up the depot ID for this platform from DEPLOY_STEAM_DEPOT_MAP (JSON)
+  DEPOT_ID=""
+  if [ -n "${DEPLOY_STEAM_DEPOT_MAP:-}" ]; then
+    DEPOT_ID=$(echo "${DEPLOY_STEAM_DEPOT_MAP}" | jq -r ".\"${DEPLOY_PLATFORM}\" // empty" 2>/dev/null)
+  fi
+
+  if [ -n "${DEPOT_ID}" ]; then
+    append_log "deploy" "Deploying to Steam (app ${DEPLOY_STEAM_APP_ID}, depot ${DEPOT_ID})..." "${DEPLOY_PLATFORM}"
+
+    STEAM_CONTENT="/build/steam_content"
+    mkdir -p "${STEAM_CONTENT}" /build/steam_output
+
+    # Copy raw exported files (before they were zipped) into a clean content directory.
+    case "${DEPLOY_PLATFORM}" in
+      windows) cp "${ARTIFACTS_DIR}/game.exe" "${STEAM_CONTENT}/" 2>/dev/null; cp "${ARTIFACTS_DIR}/game.pck" "${STEAM_CONTENT}/" 2>/dev/null ;;
+      linux)   cp "${ARTIFACTS_DIR}/game.x86_64" "${STEAM_CONTENT}/" 2>/dev/null; cp "${ARTIFACTS_DIR}/game.pck" "${STEAM_CONTENT}/" 2>/dev/null ;;
+      macos)   cp "${ARTIFACTS_DIR}/game.dmg" "${STEAM_CONTENT}/" 2>/dev/null ;;
+      web)     cp "${ARTIFACTS_DIR}"/game.html "${ARTIFACTS_DIR}"/game.js "${ARTIFACTS_DIR}"/game.wasm "${ARTIFACTS_DIR}"/game.pck "${STEAM_CONTENT}/" 2>/dev/null ;;
+      android) cp "${ARTIFACTS_DIR}/game.apk" "${STEAM_CONTENT}/" 2>/dev/null ;;
+    esac
+
+    STEAM_BRANCH="${DEPLOY_STEAM_BRANCH:-default}"
+    cat > /build/app_build.vdf <<VDFEOF
+"AppBuild"
+{
+  "AppID" "${DEPLOY_STEAM_APP_ID}"
+  "Desc" "GodotForge build ${BUILD_ID}"
+  "SetLive" "${STEAM_BRANCH}"
+  "ContentRoot" "${STEAM_CONTENT}"
+  "BuildOutput" "/build/steam_output"
+  "Depots"
+  {
+    "${DEPOT_ID}"
+    {
+      "FileMapping"
+      {
+        "LocalPath" "*"
+        "DepotPath" "."
+        "recursive" "1"
+      }
+    }
+  }
+}
+VDFEOF
+
+    if steamcmd +login "${DEPLOY_STEAM_USERNAME}" "${DEPLOY_STEAM_PASSWORD}" \
+       +run_app_build /build/app_build.vdf +quit 2>&1; then
+      append_log "deploy" "Steam deploy succeeded for ${DEPLOY_PLATFORM}" "${DEPLOY_PLATFORM}"
+    else
+      append_log "deploy" "Steam deploy FAILED for ${DEPLOY_PLATFORM}" "${DEPLOY_PLATFORM}"
+      deploy_had_failure=1
+    fi
+  else
+    append_log "deploy" "No Steam depot ID mapped for platform ${DEPLOY_PLATFORM}, skipping Steam deploy" "${DEPLOY_PLATFORM}"
+  fi
+fi
+
+# --- itch.io Deploy via Butler ---
+if [ -n "${DEPLOY_ITCH_GAME:-}" ] && [ -n "${DEPLOY_ITCH_API_KEY:-}" ] && [ ${had_failure} -eq 0 ]; then
+  # Map platform to butler channel
+  BUTLER_CHANNEL=""
+  BUTLER_FILE=""
+  case "${DEPLOY_PLATFORM}" in
+    windows) BUTLER_CHANNEL="windows";  BUTLER_FILE="${ARTIFACTS_DIR}/game-windows.zip"  ;;
+    linux)   BUTLER_CHANNEL="linux";    BUTLER_FILE="${ARTIFACTS_DIR}/game-linux.zip"    ;;
+    macos)   BUTLER_CHANNEL="mac";      BUTLER_FILE="${ARTIFACTS_DIR}/game-macos.dmg"    ;;
+    web)     BUTLER_CHANNEL="html5";    BUTLER_FILE="${ARTIFACTS_DIR}/game-web.zip"      ;;
+    android) BUTLER_CHANNEL="android";  BUTLER_FILE="${ARTIFACTS_DIR}/game-android.apk"  ;;
+  esac
+
+  if [ -n "${BUTLER_CHANNEL}" ] && [ -f "${BUTLER_FILE}" ]; then
+    append_log "deploy" "Deploying to itch.io (${DEPLOY_ITCH_GAME}:${BUTLER_CHANNEL})..." "${DEPLOY_PLATFORM}"
+    export BUTLER_API_KEY="${DEPLOY_ITCH_API_KEY}"
+    if butler push "${BUTLER_FILE}" "${DEPLOY_ITCH_GAME}:${BUTLER_CHANNEL}" 2>&1; then
+      append_log "deploy" "itch.io deploy succeeded for ${DEPLOY_PLATFORM}" "${DEPLOY_PLATFORM}"
+    else
+      append_log "deploy" "itch.io deploy FAILED for ${DEPLOY_PLATFORM}" "${DEPLOY_PLATFORM}"
+      deploy_had_failure=1
+    fi
+    unset BUTLER_API_KEY
+  else
+    append_log "deploy" "No butler file found for platform ${DEPLOY_PLATFORM}, skipping itch.io deploy" "${DEPLOY_PLATFORM}"
+  fi
+fi
+
 # Calculate duration
 END_TIME=$(date +%s)
 DURATION=$((END_TIME - START_TIME))
@@ -327,6 +423,9 @@ DURATION=$((END_TIME - START_TIME))
 if [ ${had_failure} -eq 1 ]; then
   append_log "complete" "Build completed with errors in ${DURATION}s"
   echo "=== Build failed (${DURATION}s) ==="
+elif [ ${deploy_had_failure} -eq 1 ]; then
+  append_log "complete" "Build succeeded but deploy had errors in ${DURATION}s"
+  echo "=== Build ok, deploy failed (${DURATION}s) ==="
 else
   append_log "complete" "Build completed in ${DURATION}s"
   echo "=== Build complete (${DURATION}s) ==="

@@ -74,6 +74,17 @@ create table if not exists public.projects (
   trigger_on_pr boolean default false,
   webhook_id text,
   webhook_secret text,
+  -- Deploy: Steam
+  deploy_to_steam boolean default false,
+  steam_app_id text,
+  steam_depot_map jsonb,
+  steam_branch text default 'default',
+  steam_username_enc text,
+  steam_password_enc text,
+  -- Deploy: itch.io
+  deploy_to_itch boolean default false,
+  itch_game_slug text,
+  itch_api_key_enc text,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );

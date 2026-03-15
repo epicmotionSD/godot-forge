@@ -41,6 +41,7 @@ export async function startBuildContainer(opts: {
   platforms: string[];
   godotVersion?: string;
   githubToken?: string;
+  deployEnv?: Record<string, string>;
 }): Promise<RailwayDeployResult> {
   const isGitHubRepo = /^https:\/\/github\.com\//i.test(opts.repoUrl.trim());
   if (isGitHubRepo && !opts.githubToken) {
@@ -81,6 +82,13 @@ export async function startBuildContainer(opts: {
 
   if (opts.githubToken) {
     envVars.GITHUB_TOKEN = opts.githubToken;
+  }
+
+  // Deploy-phase env vars (decrypted credentials from project config)
+  if (opts.deployEnv) {
+    for (const [k, v] of Object.entries(opts.deployEnv)) {
+      envVars[k] = v;
+    }
   }
 
   // Set the image first (does NOT trigger a deployment on its own).

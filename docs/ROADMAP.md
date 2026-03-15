@@ -39,9 +39,9 @@ GodotForge follows a phased approach: MVP → Growth → Platform. Each phase bu
 
 ### Milestone 1.4 — Deploy Pipeline (Weeks 7–9)
 - [x] Artifact storage (Supabase Storage bucket) + signed download URLs
-- [ ] Steam deployment via SteamCMD (app ID + depot mapping config)
-- [ ] itch.io deployment via Butler (API key + game slug config)
-- [ ] Credential encryption at rest for Steam/itch.io secrets
+- [x] Steam deployment via SteamCMD (app ID + depot mapping config)
+- [x] itch.io deployment via Butler (API key + game slug config)
+- [x] Credential encryption at rest for Steam/itch.io secrets
 
 ### Milestone 1.5 — Polish & Beta Prep (Weeks 9–10)
 - [x] Build history view with status, duration, artifact links

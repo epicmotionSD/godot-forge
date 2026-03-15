@@ -4,6 +4,7 @@ import {
   getDeploymentStatus,
   deleteBuildService,
 } from "@/lib/railway";
+import { decrypt } from "@/lib/crypto";
 import { createClient } from "@supabase/supabase-js";
 
 function getServiceClient() {
@@ -31,9 +32,10 @@ async function runPlatformBuild(
     projectPath: string;
     godotVersion?: string;
     githubToken?: string;
+    deployEnv?: Record<string, string>;
   }
 ) {
-  const { buildId, platform, repoUrl, commitSha, projectPath, godotVersion, githubToken } = opts;
+  const { buildId, platform, repoUrl, commitSha, projectPath, godotVersion, githubToken, deployEnv } = opts;
   const supabase = getServiceClient();
 
   const deployment = await step.run(
@@ -47,6 +49,7 @@ async function runPlatformBuild(
         platforms: [platform],
         godotVersion,
         githubToken,
+        deployEnv,
       });
     }
   );
@@ -154,6 +157,44 @@ export const buildFunction = inngest.createFunction(
         godot_version: string | null;
       };
 
+      // Fetch deploy config for this project
+      const deployEnv = await step.run("fetch-deploy-config", async () => {
+        const { data: proj } = await supabase
+          .from("projects")
+          .select(
+            "deploy_to_steam, steam_app_id, steam_depot_map, steam_branch, steam_username_enc, steam_password_enc, deploy_to_itch, itch_game_slug, itch_api_key_enc"
+          )
+          .eq("id", build.project_id)
+          .single();
+
+        if (!proj) return {} as Record<string, string>;
+
+        const env: Record<string, string> = {};
+
+        if (proj.deploy_to_steam && proj.steam_app_id && proj.steam_username_enc && proj.steam_password_enc) {
+          env.DEPLOY_STEAM_APP_ID = proj.steam_app_id;
+          env.DEPLOY_STEAM_BRANCH = proj.steam_branch || "default";
+          env.DEPLOY_STEAM_DEPOT_MAP = JSON.stringify(proj.steam_depot_map || {});
+          try {
+            env.DEPLOY_STEAM_USERNAME = decrypt(proj.steam_username_enc);
+            env.DEPLOY_STEAM_PASSWORD = decrypt(proj.steam_password_enc);
+          } catch {
+            // Decryption failed — skip Steam deploy
+          }
+        }
+
+        if (proj.deploy_to_itch && proj.itch_game_slug && proj.itch_api_key_enc) {
+          env.DEPLOY_ITCH_GAME = proj.itch_game_slug;
+          try {
+            env.DEPLOY_ITCH_API_KEY = decrypt(proj.itch_api_key_enc);
+          } catch {
+            // Decryption failed — skip itch.io deploy
+          }
+        }
+
+        return env;
+      });
+
       // Preflight: fail immediately if GitHub token is required but missing.
       if (isGitHubRepoUrl(project.repo_url) && !build.github_token) {
         await step.run("preflight-missing-github-token", async () => {
@@ -222,6 +263,7 @@ export const buildFunction = inngest.createFunction(
             projectPath: project.project_path || ".",
             godotVersion: project.godot_version || undefined,
             githubToken: build.github_token || undefined,
+            deployEnv: Object.keys(deployEnv).length > 0 ? deployEnv : undefined,
           }).catch(() => ({ platform, status: "failed" as const }))
         )
       );

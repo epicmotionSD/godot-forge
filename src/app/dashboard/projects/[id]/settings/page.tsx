@@ -25,6 +25,22 @@ interface Project {
   repo_url: string;
 }
 
+interface DeployConfig {
+  steam: {
+    enabled: boolean;
+    appId: string;
+    depotMap: Record<string, string>;
+    branch: string;
+    hasUsername: boolean;
+    hasPassword: boolean;
+  };
+  itch: {
+    enabled: boolean;
+    game: string;
+    hasApiKey: boolean;
+  };
+}
+
 export default function ProjectSettingsPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -34,11 +50,26 @@ export default function ProjectSettingsPage() {
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Editable state
+  // Editable state — build settings
   const [platforms, setPlatforms] = useState<string[]>([]);
   const [triggerPush, setTriggerPush] = useState(true);
   const [triggerTag, setTriggerTag] = useState(false);
   const [triggerPr, setTriggerPr] = useState(false);
+
+  // Editable state — deploy settings
+  const [deployConfig, setDeployConfig] = useState<DeployConfig | null>(null);
+  const [steamEnabled, setSteamEnabled] = useState(false);
+  const [steamAppId, setSteamAppId] = useState("");
+  const [steamBranch, setSteamBranch] = useState("default");
+  const [steamDepotMap, setSteamDepotMap] = useState<Record<string, string>>({});
+  const [steamUsername, setSteamUsername] = useState("");
+  const [steamPassword, setSteamPassword] = useState("");
+  const [itchEnabled, setItchEnabled] = useState(false);
+  const [itchGame, setItchGame] = useState("");
+  const [itchApiKey, setItchApiKey] = useState("");
+  const [deploySaving, setDeploySaving] = useState(false);
+  const [deploySaved, setDeploySaved] = useState(false);
+  const [deploySaveError, setDeploySaveError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -56,6 +87,24 @@ export default function ProjectSettingsPage() {
         setTriggerTag(data.trigger_on_tag ?? false);
         setTriggerPr(data.trigger_on_pr ?? false);
       }
+
+      // Fetch deploy config
+      try {
+        const res = await fetch(`/api/projects/${id}/deploy`);
+        if (res.ok) {
+          const dc: DeployConfig = await res.json();
+          setDeployConfig(dc);
+          setSteamEnabled(dc.steam.enabled);
+          setSteamAppId(dc.steam.appId);
+          setSteamBranch(dc.steam.branch);
+          setSteamDepotMap(dc.steam.depotMap);
+          setItchEnabled(dc.itch.enabled);
+          setItchGame(dc.itch.game);
+        }
+      } catch {
+        // Deploy config not available yet
+      }
+
       setLoading(false);
     }
     load();
@@ -96,6 +145,51 @@ export default function ProjectSettingsPage() {
       setSaveError("Network error — check your connection and try again.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleDeploySave() {
+    setDeploySaving(true);
+    setDeploySaveError(null);
+    try {
+      const body: Record<string, unknown> = {
+        steam: {
+          enabled: steamEnabled,
+          appId: steamAppId,
+          depotMap: steamDepotMap,
+          branch: steamBranch,
+          ...(steamUsername ? { username: steamUsername } : {}),
+          ...(steamPassword ? { password: steamPassword } : {}),
+        },
+        itch: {
+          enabled: itchEnabled,
+          game: itchGame,
+          ...(itchApiKey ? { apiKey: itchApiKey } : {}),
+        },
+      };
+      const res = await fetch(`/api/projects/${id}/deploy`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        const result = await res.json();
+        if (result.steam) {
+          setDeployConfig(result);
+        }
+        setSteamUsername("");
+        setSteamPassword("");
+        setItchApiKey("");
+        setDeploySaved(true);
+        setTimeout(() => setDeploySaved(false), 2000);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setDeploySaveError(err.error || `Save failed (${res.status})`);
+      }
+    } catch {
+      setDeploySaveError("Network error");
+    } finally {
+      setDeploySaving(false);
     }
   }
 
@@ -286,13 +380,199 @@ export default function ProjectSettingsPage() {
           {saveError && (
             <span className="text-sm text-gf-red">{saveError}</span>
           )}
-          <Link
-            href={`/dashboard/projects/${id}`}
-            className="px-4 py-2.5 rounded-lg bg-gf-elevated border border-gf-border text-sm text-gf-text-secondary hover:border-gf-border-hover transition-colors"
-          >
-            Back to Project
-          </Link>
         </div>
+
+        {/* ─── Deploy Configuration ─── */}
+        <div className="border-t border-gf-border my-2" />
+        <h2 className="text-lg font-bold text-gf-text">Deploy Pipeline</h2>
+        <p className="text-sm text-gf-text-muted -mt-4">
+          Automatically push builds to Steam and/or itch.io after a successful export.
+        </p>
+
+        {/* Steam Deploy */}
+        <div className="bg-gf-card border border-gf-border rounded-xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">🎮</span>
+              <h3 className="text-base font-semibold text-gf-text">Steam (SteamPipe)</h3>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={steamEnabled}
+              onClick={() => setSteamEnabled(!steamEnabled)}
+              className={`shrink-0 w-9 h-5 rounded-full transition-colors relative ${
+                steamEnabled ? "bg-gf-blue" : "bg-gf-elevated border border-gf-border"
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                  steamEnabled ? "left-[18px]" : "left-0.5"
+                }`}
+              />
+            </button>
+          </div>
+
+          {steamEnabled && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs text-gf-text-muted mb-1">App ID</label>
+                <input
+                  type="text"
+                  value={steamAppId}
+                  onChange={(e) => setSteamAppId(e.target.value)}
+                  placeholder="480"
+                  className="w-full px-3 py-2 rounded-lg bg-gf-elevated border border-gf-border text-sm text-gf-text placeholder:text-gf-text-muted/50 focus:border-gf-blue focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gf-text-muted mb-1">Branch</label>
+                <input
+                  type="text"
+                  value={steamBranch}
+                  onChange={(e) => setSteamBranch(e.target.value)}
+                  placeholder="default"
+                  className="w-full px-3 py-2 rounded-lg bg-gf-elevated border border-gf-border text-sm text-gf-text placeholder:text-gf-text-muted/50 focus:border-gf-blue focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gf-text-muted mb-2">
+                  Depot Mapping <span className="text-gf-text-muted">(platform → Depot ID)</span>
+                </label>
+                <div className="space-y-2">
+                  {platforms.map((p) => (
+                    <div key={p} className="flex items-center gap-2">
+                      <span className="text-xs text-gf-text-muted w-20">{p}</span>
+                      <input
+                        type="text"
+                        value={steamDepotMap[p] ?? ""}
+                        onChange={(e) =>
+                          setSteamDepotMap((prev) => ({ ...prev, [p]: e.target.value }))
+                        }
+                        placeholder="Depot ID"
+                        className="flex-1 px-3 py-1.5 rounded-lg bg-gf-elevated border border-gf-border text-sm text-gf-text placeholder:text-gf-text-muted/50 focus:border-gf-blue focus:outline-none"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gf-text-muted mb-1">
+                    Steam Username {deployConfig?.steam.hasUsername && <span className="text-gf-green">(set)</span>}
+                  </label>
+                  <input
+                    type="text"
+                    value={steamUsername}
+                    onChange={(e) => setSteamUsername(e.target.value)}
+                    placeholder={deployConfig?.steam.hasUsername ? "••••••••" : "build-account"}
+                    className="w-full px-3 py-2 rounded-lg bg-gf-elevated border border-gf-border text-sm text-gf-text placeholder:text-gf-text-muted/50 focus:border-gf-blue focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gf-text-muted mb-1">
+                    Steam Password {deployConfig?.steam.hasPassword && <span className="text-gf-green">(set)</span>}
+                  </label>
+                  <input
+                    type="password"
+                    value={steamPassword}
+                    onChange={(e) => setSteamPassword(e.target.value)}
+                    placeholder={deployConfig?.steam.hasPassword ? "••••••••" : "password"}
+                    className="w-full px-3 py-2 rounded-lg bg-gf-elevated border border-gf-border text-sm text-gf-text placeholder:text-gf-text-muted/50 focus:border-gf-blue focus:outline-none"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-gf-text-muted">
+                Use a dedicated Steamworks build account. Disable SteamGuard or use an app-specific password for CI.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* itch.io Deploy */}
+        <div className="bg-gf-card border border-gf-border rounded-xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">🕹️</span>
+              <h3 className="text-base font-semibold text-gf-text">itch.io (Butler)</h3>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={itchEnabled}
+              onClick={() => setItchEnabled(!itchEnabled)}
+              className={`shrink-0 w-9 h-5 rounded-full transition-colors relative ${
+                itchEnabled ? "bg-gf-blue" : "bg-gf-elevated border border-gf-border"
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                  itchEnabled ? "left-[18px]" : "left-0.5"
+                }`}
+              />
+            </button>
+          </div>
+
+          {itchEnabled && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs text-gf-text-muted mb-1">Game Slug</label>
+                <input
+                  type="text"
+                  value={itchGame}
+                  onChange={(e) => setItchGame(e.target.value)}
+                  placeholder="your-username/your-game"
+                  className="w-full px-3 py-2 rounded-lg bg-gf-elevated border border-gf-border text-sm text-gf-text placeholder:text-gf-text-muted/50 focus:border-gf-blue focus:outline-none"
+                />
+                <p className="text-xs text-gf-text-muted mt-1">
+                  Format: <code>username/game-name</code> — channels are auto-mapped from platforms (windows, linux, mac, html5, android).
+                </p>
+              </div>
+              <div>
+                <label className="block text-xs text-gf-text-muted mb-1">
+                  Butler API Key {deployConfig?.itch.hasApiKey && <span className="text-gf-green">(set)</span>}
+                </label>
+                <input
+                  type="password"
+                  value={itchApiKey}
+                  onChange={(e) => setItchApiKey(e.target.value)}
+                  placeholder={deployConfig?.itch.hasApiKey ? "••••••••" : "API key from itch.io settings"}
+                  className="w-full px-3 py-2 rounded-lg bg-gf-elevated border border-gf-border text-sm text-gf-text placeholder:text-gf-text-muted/50 focus:border-gf-blue focus:outline-none"
+                />
+                <p className="text-xs text-gf-text-muted mt-1">
+                  Generate at itch.io → Settings → API keys.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Deploy Save button */}
+        {(steamEnabled || itchEnabled || deployConfig?.steam.enabled || deployConfig?.itch.enabled) && (
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleDeploySave}
+              disabled={deploySaving}
+              className="px-6 py-2.5 rounded-lg text-white text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-50"
+              style={{ background: "linear-gradient(135deg, #4d8fcc, #e05572)" }}
+            >
+              {deploySaving ? "Saving..." : "Save Deploy Settings"}
+            </button>
+            {deploySaved && (
+              <span className="text-sm text-gf-green">Deploy settings saved</span>
+            )}
+            {deploySaveError && (
+              <span className="text-sm text-gf-red">{deploySaveError}</span>
+            )}
+          </div>
+        )}
+
+        <Link
+          href={`/dashboard/projects/${id}`}
+          className="inline-block px-4 py-2.5 rounded-lg bg-gf-elevated border border-gf-border text-sm text-gf-text-secondary hover:border-gf-border-hover transition-colors"
+        >
+          Back to Project
+        </Link>
       </div>
     </div>
   );
