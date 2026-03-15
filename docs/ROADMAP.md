@@ -1,6 +1,6 @@
 # GodotForge — Product Roadmap
 
-> Last updated: March 6, 2026
+> Last updated: March 15, 2026
 
 ---
 
@@ -53,7 +53,7 @@ GodotForge follows a phased approach: MVP → Growth → Platform. Each phase bu
 - [x] Vercel production env vars: all 9 configured (Supabase, Inngest, Railway)
 - [x] Stripe integration: Starter (free) + Indie ($19/mo) tiers
 - [x] Landing page updates, waitlist → beta access conversion
-- [ ] **Dogfooding:** Internal test with Roadblocs (Godot 4.6 game) — requires GitHub push + export presets + Godot 4.6 Docker image
+- [ ] **Dogfooding:** Internal test with Roadblocs (Godot 4.6 game) — blocked on game development; resume when Roadblocs has export presets ready
 
 ---
 
