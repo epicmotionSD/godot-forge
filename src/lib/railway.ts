@@ -42,6 +42,11 @@ export async function startBuildContainer(opts: {
   godotVersion?: string;
   githubToken?: string;
 }): Promise<RailwayDeployResult> {
+  const isGitHubRepo = /^https:\/\/github\.com\//i.test(opts.repoUrl.trim());
+  if (isGitHubRepo && !opts.githubToken) {
+    throw new Error(`Missing GitHub token for GitHub repository build: ${opts.repoUrl}`);
+  }
+
   const projectId = process.env.RAILWAY_PROJECT_ID!;
   const environmentId = process.env.RAILWAY_ENVIRONMENT_ID!;
   const tag = opts.godotVersion || "4.3";
@@ -62,7 +67,39 @@ export async function startBuildContainer(opts: {
   );
   const serviceId = createResult.serviceCreate.id;
 
-  // Set the Docker image source (sleepApplication required on Railway Free Tier)
+  // Set environment variables for the build (trim to strip \r\n from Vercel env vars)
+  const envVars: Record<string, string> = {
+    BUILD_ID: opts.buildId,
+    REPO_URL: opts.repoUrl,
+    COMMIT_SHA: opts.commitSha,
+    PROJECT_PATH: opts.projectPath,
+    PLATFORM: opts.platforms[0] || "linux",
+    PLATFORMS: opts.platforms.join(","),
+    SUPABASE_URL: process.env.SUPABASE_URL!.trim(),
+    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY!.trim(),
+  };
+
+  if (opts.githubToken) {
+    envVars.GITHUB_TOKEN = opts.githubToken;
+  }
+
+  // Apply env vars in one mutation to avoid per-variable redeploy churn.
+  await gql(
+    `mutation($input: VariableCollectionUpsertInput!) {
+      variableCollectionUpsert(input: $input)
+    }`,
+    {
+      input: {
+        projectId,
+        environmentId,
+        serviceId,
+        skipDeploys: true,
+        variables: envVars,
+      },
+    }
+  );
+
+  // Set the image last; this should create a single deployment with all vars applied.
   await gql(
     `mutation($id: String!, $input: ServiceInstanceUpdateInput!) {
       serviceInstanceUpdate(serviceId: $id, input: $input)
@@ -76,59 +113,20 @@ export async function startBuildContainer(opts: {
     }
   );
 
-  // Set environment variables for the build (trim to strip \r\n from Vercel env vars)
-  const envVars: Record<string, string> = {
-    BUILD_ID: opts.buildId,
-    REPO_URL: opts.repoUrl,
-    COMMIT_SHA: opts.commitSha,
-    PROJECT_PATH: opts.projectPath,
-    PLATFORMS: opts.platforms.join(","),
-    SUPABASE_URL: process.env.SUPABASE_URL!.trim(),
-    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY!.trim(),
-  };
-
-  if (opts.githubToken) {
-    envVars.GITHUB_TOKEN = opts.githubToken;
-  }
-
-  await Promise.all(
-    Object.entries(envVars).map(([name, value]) =>
-      gql(
-        `mutation($input: VariableUpsertInput!) {
-          variableUpsert(input: $input)
-        }`,
-        {
-          input: {
-            projectId,
-            environmentId,
-            serviceId,
-            name,
-            value,
-          },
-        }
-      )
-    )
-  );
-
-  // Trigger deployment via redeploy (deploymentTriggerCreate doesn't work for image-based services)
-  await gql(
-    `mutation($environmentId: String!, $serviceId: String!) {
-      serviceInstanceRedeploy(environmentId: $environmentId, serviceId: $serviceId)
-    }`,
-    { environmentId, serviceId }
-  );
-
-  // Wait briefly then fetch the deployment ID
-  await new Promise((r) => setTimeout(r, 1000));
+  // Wait briefly then fetch the latest non-removed deployment ID.
+  await new Promise((r) => setTimeout(r, 3000));
   const deploymentsResult = await gql(
     `query($input: DeploymentListInput!) {
       deployments(input: $input) { edges { node { id status } } }
     }`,
     { input: { serviceId, environmentId } }
   );
-  const latestDeployment = deploymentsResult.deployments.edges[0]?.node;
+  const latestDeployment = deploymentsResult.deployments.edges
+    .map((edge: { node: { id: string; status: string } }) => edge.node)
+    .find((deployment: { id: string; status: string }) => deployment.status !== "REMOVED");
+
   if (!latestDeployment) {
-    throw new Error("No deployment found after serviceInstanceRedeploy");
+    throw new Error("No active deployment found after serviceInstanceUpdate");
   }
 
   return {

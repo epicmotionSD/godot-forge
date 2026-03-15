@@ -6,13 +6,16 @@ ARG GODOT_RELEASE=stable
 ENV DEBIAN_FRONTEND=noninteractive
 ENV GODOT_VERSION=${GODOT_VERSION}
 
-# Install dependencies
+# Install dependencies (fontconfig required by Godot for font handling)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
+    fontconfig \
     git \
+    jq \
     unzip \
     wget \
+    zip \
     && rm -rf /var/lib/apt/lists/*
 
 # Download Godot headless
@@ -36,6 +39,6 @@ RUN mkdir -p /root/.local/share/godot/export_templates/${GODOT_VERSION}.${GODOT_
 WORKDIR /build
 
 COPY build.sh /build/build.sh
-RUN chmod +x /build/build.sh
+RUN sed -i 's/\r$//' /build/build.sh && chmod +x /build/build.sh
 
 ENTRYPOINT ["/build/build.sh"]
