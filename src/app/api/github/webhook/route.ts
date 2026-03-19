@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createWebhook } from "@/lib/github";
+import { createWebhook, GitHubApiError } from "@/lib/github";
 import { randomBytes } from "crypto";
 
 export async function POST(request: NextRequest) {
@@ -60,34 +60,39 @@ export async function POST(request: NextRequest) {
 
   const [, owner, repo] = match;
   const secret = randomBytes(32).toString("hex");
-  const webhookUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL ? "https://godot-forge.vercel.app" : "http://localhost:3000"}/api/webhooks/github`;
+  const baseUrl = process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : "http://localhost:3000";
+  const webhookUrl = `${baseUrl}/api/webhooks/github`;
 
-  const result = await createWebhook(
-    profile.github_token,
-    owner,
-    repo,
-    webhookUrl,
-    secret
-  );
-
-  if (!result) {
-    return NextResponse.json(
-      { error: "Failed to create webhook on GitHub. Check repo permissions." },
-      { status: 500 }
+  try {
+    const result = await createWebhook(
+      profile.github_token,
+      owner,
+      repo,
+      webhookUrl,
+      secret
     );
+
+    // Save webhook info to the project
+    await supabase
+      .from("projects")
+      .update({
+        webhook_id: String(result.id),
+        webhook_secret: secret,
+        trigger_on_push: true,
+        trigger_on_tag: true,
+        trigger_on_pr: false,
+      })
+      .eq("id", project_id);
+
+    return NextResponse.json({ webhook_id: result.id });
+  } catch (err) {
+    const message =
+      err instanceof GitHubApiError
+        ? err.message
+        : "Failed to create webhook on GitHub. Check repo permissions.";
+    const status = err instanceof GitHubApiError ? err.status : 500;
+    return NextResponse.json({ error: message }, { status });
   }
-
-  // Save webhook info to the project
-  await supabase
-    .from("projects")
-    .update({
-      webhook_id: String(result.id),
-      webhook_secret: secret,
-      trigger_on_push: true,
-      trigger_on_tag: true,
-      trigger_on_pr: false,
-    })
-    .eq("id", project_id);
-
-  return NextResponse.json({ webhook_id: result.id });
 }

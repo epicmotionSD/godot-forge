@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { listRepos } from "@/lib/github";
+import { listRepos, GitHubApiError } from "@/lib/github";
 import { NextResponse } from "next/server";
 
 export async function GET() {
@@ -26,7 +26,23 @@ export async function GET() {
     );
   }
 
-  const repos = await listRepos(profile.github_token);
-
-  return NextResponse.json({ repos });
+  try {
+    const repos = await listRepos(profile.github_token);
+    return NextResponse.json({ repos });
+  } catch (err) {
+    if (err instanceof GitHubApiError) {
+      // Token expired or revoked — clear it so user gets a clear re-auth prompt
+      if (err.status === 401) {
+        await supabase
+          .from("profiles")
+          .update({ github_token: null })
+          .eq("id", user.id);
+      }
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+    return NextResponse.json(
+      { error: "Failed to fetch repositories from GitHub." },
+      { status: 500 }
+    );
+  }
 }

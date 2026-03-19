@@ -52,6 +52,7 @@ export default function NewProjectPage() {
   const [platforms, setPlatforms] = useState<string[]>(["windows", "linux"]);
   const [creating, setCreating] = useState(false);
   const [planError, setPlanError] = useState("");
+  const [createError, setCreateError] = useState("");
 
   // Fetch repos on mount + check plan limits
   useEffect(() => {
@@ -118,6 +119,7 @@ export default function NewProjectPage() {
   const handleCreate = async () => {
     if (!selectedRepo || !name.trim() || platforms.length === 0) return;
     setCreating(true);
+    setCreateError("");
 
     const supabase = createClient();
     const {
@@ -146,16 +148,26 @@ export default function NewProjectPage() {
 
     if (error || !project) {
       console.error("Failed to create project:", error);
+      setCreateError("Failed to create project. Please try again.");
       setCreating(false);
       return;
     }
 
-    // Register webhook (best-effort — don't block on failure)
-    fetch("/api/github/webhook", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ project_id: project.id }),
-    }).catch(() => {});
+    // Register webhook — await it so we can show errors
+    try {
+      const whRes = await fetch("/api/github/webhook", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ project_id: project.id }),
+      });
+      if (!whRes.ok) {
+        const whData = await whRes.json();
+        console.warn("Webhook registration failed:", whData.error);
+        // Non-blocking — project still works, just no auto-triggers
+      }
+    } catch {
+      console.warn("Webhook registration skipped");
+    }
 
     router.push(`/dashboard/projects/${project.id}`);
     router.refresh();
@@ -396,6 +408,12 @@ export default function NewProjectPage() {
         {planError && (
           <div className="mb-4 px-4 py-3 bg-gf-red/10 border border-gf-red/20 rounded-lg text-sm text-gf-red">
             {planError}
+          </div>
+        )}
+
+        {createError && (
+          <div className="mb-4 px-4 py-3 bg-gf-red/10 border border-gf-red/20 rounded-lg text-sm text-gf-red">
+            {createError}
           </div>
         )}
 

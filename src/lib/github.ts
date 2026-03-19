@@ -31,6 +31,13 @@ function headers(token: string) {
   };
 }
 
+export class GitHubApiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+    this.name = "GitHubApiError";
+  }
+}
+
 export async function listRepos(token: string): Promise<GitHubRepo[]> {
   const repos: GitHubRepo[] = [];
   let page = 1;
@@ -41,7 +48,18 @@ export async function listRepos(token: string): Promise<GitHubRepo[]> {
       `${GITHUB_API}/user/repos?sort=pushed&per_page=100&page=${page}`,
       { headers: headers(token) }
     );
-    if (!res.ok) break;
+    if (!res.ok) {
+      if (page === 1) {
+        // First page failed — token is likely bad
+        throw new GitHubApiError(
+          res.status,
+          res.status === 401
+            ? "GitHub token is invalid or expired. Please sign out and sign in again."
+            : `GitHub API error: ${res.status}`
+        );
+      }
+      break;
+    }
     const batch: GitHubRepo[] = await res.json();
     if (batch.length === 0) break;
     repos.push(...batch);
@@ -139,7 +157,7 @@ export async function createWebhook(
   repo: string,
   webhookUrl: string,
   secret: string
-): Promise<{ id: number } | null> {
+): Promise<{ id: number }> {
   const res = await fetch(
     `${GITHUB_API}/repos/${owner}/${repo}/hooks`,
     {
@@ -159,7 +177,17 @@ export async function createWebhook(
     }
   );
 
-  if (!res.ok) return null;
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new GitHubApiError(
+      res.status,
+      res.status === 404
+        ? "Repository not found or you don't have admin access to create webhooks."
+        : res.status === 422
+        ? "Webhook already exists for this repository."
+        : `Failed to create webhook: ${res.status} ${body.slice(0, 200)}`
+    );
+  }
   const data = await res.json();
   return { id: data.id };
 }

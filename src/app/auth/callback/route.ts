@@ -29,12 +29,18 @@ export async function GET(request: Request) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error && data.session) {
       // Save GitHub token to profile for API access
+      // Use upsert so first-time users get a profile row created
       const providerToken = data.session.provider_token;
       if (providerToken) {
         await supabase
           .from("profiles")
-          .update({ github_token: providerToken })
-          .eq("id", data.session.user.id);
+          .upsert(
+            {
+              id: data.session.user.id,
+              github_token: providerToken,
+            },
+            { onConflict: "id" }
+          );
       }
 
       const forwardedHost = request.headers.get("x-forwarded-host");
