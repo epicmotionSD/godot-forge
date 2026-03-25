@@ -7,4 +7,7 @@ export const maxDuration = 60;
 export const { GET, POST, PUT } = serve({
   client: inngest,
   functions: [buildFunction],
+  ...(process.env.NEXT_PUBLIC_APP_URL && {
+    serveHost: process.env.NEXT_PUBLIC_APP_URL,
+  }),
 });

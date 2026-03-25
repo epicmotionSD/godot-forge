@@ -6,7 +6,7 @@ The managed CI/CD platform built exclusively for Godot Engine. Connect your repo
 
 > W4 Build is dead. GodotForge is the replacement.
 
-[![Waitlist](https://img.shields.io/badge/waitlist-open-blue)](https://godot-forge.vercel.app) [![Status](https://img.shields.io/badge/status-pre--beta-orange)]()
+[![Waitlist](https://img.shields.io/badge/waitlist-open-blue)](https://godotforge.dev) [![Status](https://img.shields.io/badge/status-pre--beta-orange)]()
 
 ---
 
@@ -98,7 +98,7 @@ vercel --prod
 
 ## Waitlist
 
-The beta waitlist is live at **[godot-forge.vercel.app](https://godot-forge.vercel.app)**
+The beta waitlist is live at **[godotforge.dev](https://godotforge.dev)**
 
 ## License
 

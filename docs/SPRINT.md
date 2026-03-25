@@ -13,7 +13,7 @@
 
 ### Completed
 
-- [x] Landing page live at godot-forge.vercel.app
+- [x] Landing page live at godotforge.dev
 - [x] Waitlist form functional (Vercel serverless → Supabase)
 - [x] Supabase project created, waitlist table + RLS configured
 - [x] Vercel project deployed with env vars
@@ -53,7 +53,7 @@
 - [x] Landing page converted to Next.js (React component)
 - [x] Waitlist API migrated to App Router
 - [x] Build history page, account settings page
-- [x] Deploy to Vercel production (godot-forge.vercel.app)
+- [x] Deploy to Vercel production (godotforge.dev)
 - [x] Environment variables configured (Supabase URL, anon key, service role key)
 - [ ] Stripe account setup, subscription model scaffolding
 

@@ -81,7 +81,7 @@ godot-forge/
 
 | Branch | Purpose |
 |---|---|
-| `main` | Production — deployed to godot-forge.vercel.app |
+| `main` | Production — deployed to godotforge.dev |
 | `develop` | Integration branch for feature work |
 | `feature/*` | Individual feature branches |
 | `fix/*` | Bug fix branches |

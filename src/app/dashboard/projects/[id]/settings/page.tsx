@@ -23,6 +23,7 @@ interface Project {
   godot_version: string | null;
   project_path: string | null;
   repo_url: string;
+  webhook_id: string | null;
 }
 
 interface DeployConfig {
@@ -71,12 +72,16 @@ export default function ProjectSettingsPage() {
   const [deploySaved, setDeploySaved] = useState(false);
   const [deploySaveError, setDeploySaveError] = useState<string | null>(null);
 
+  // Webhook state
+  const [webhookSetting, setWebhookSetting] = useState(false);
+  const [webhookError, setWebhookError] = useState<string | null>(null);
+
   useEffect(() => {
     async function load() {
       const supabase = createClient();
       const { data } = await supabase
         .from("projects")
-        .select("id, name, platforms, trigger_on_push, trigger_on_tag, trigger_on_pr, godot_version, project_path, repo_url")
+        .select("id, name, platforms, trigger_on_push, trigger_on_tag, trigger_on_pr, godot_version, project_path, repo_url, webhook_id")
         .eq("id", id)
         .single();
 
@@ -109,6 +114,29 @@ export default function ProjectSettingsPage() {
     }
     load();
   }, [id]);
+
+  async function handleWebhookSetup() {
+    setWebhookSetting(true);
+    setWebhookError(null);
+    try {
+      const res = await fetch("/api/github/webhook", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ project_id: id }),
+      });
+      if (res.ok) {
+        const { webhook_id } = await res.json();
+        setProject((prev) => prev ? { ...prev, webhook_id } : prev);
+      } else {
+        const body = await res.json().catch(() => ({}));
+        setWebhookError(body.error || `Failed (${res.status})`);
+      }
+    } catch {
+      setWebhookError("Network error — check your connection and try again.");
+    } finally {
+      setWebhookSetting(false);
+    }
+  }
 
   function togglePlatform(platformId: string) {
     setPlatforms((prev) =>
@@ -331,6 +359,41 @@ export default function ProjectSettingsPage() {
               </label>
             ))}
           </div>
+        </div>
+
+        {/* Webhook Status */}
+        <div className="bg-gf-card border border-gf-border rounded-xl p-6">
+          <h2 className="text-base font-semibold text-gf-text mb-1">
+            Webhook
+          </h2>
+          <p className="text-sm text-gf-text-muted mb-4">
+            GitHub webhook delivers push, tag, and PR events to trigger automatic builds.
+          </p>
+          <div className="flex items-center gap-3">
+            <span
+              className={`w-2 h-2 rounded-full ${
+                project.webhook_id ? "bg-gf-green" : "bg-gf-red"
+              }`}
+            />
+            <span className="text-sm text-gf-text-secondary">
+              {project.webhook_id ? "Webhook active" : "No webhook connected"}
+            </span>
+          </div>
+          {!project.webhook_id && (
+            <div className="mt-4">
+              <button
+                onClick={handleWebhookSetup}
+                disabled={webhookSetting}
+                className="px-4 py-2 rounded-lg text-white text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-50"
+                style={{ background: "linear-gradient(135deg, #4d8fcc, #e05572)" }}
+              >
+                {webhookSetting ? "Setting up..." : "Setup Webhook"}
+              </button>
+              {webhookError && (
+                <p className="text-sm text-gf-red mt-2">{webhookError}</p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Project Info (read-only) */}
