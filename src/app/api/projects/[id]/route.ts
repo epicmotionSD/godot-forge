@@ -15,6 +15,32 @@ export async function DELETE(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Verify the project belongs to this user
+  const { data: project } = await supabase
+    .from("projects")
+    .select("id")
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .single();
+
+  if (!project) {
+    return NextResponse.json({ error: "Project not found" }, { status: 404 });
+  }
+
+  // Manually cascade: build_logs + artifacts → builds → project
+  // (handles DBs where ON DELETE CASCADE wasn't applied)
+  const { data: builds } = await supabase
+    .from("builds")
+    .select("id")
+    .eq("project_id", id);
+
+  if (builds && builds.length > 0) {
+    const buildIds = builds.map((b) => b.id);
+    await supabase.from("build_logs").delete().in("build_id", buildIds);
+    await supabase.from("artifacts").delete().in("build_id", buildIds);
+    await supabase.from("builds").delete().in("id", buildIds);
+  }
+
   const { error } = await supabase
     .from("projects")
     .delete()
