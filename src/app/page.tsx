@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { LogoMark } from "@/components/logo";
 
 function WaitlistForm({ id }: { id: string }) {
   const [email, setEmail] = useState("");
@@ -75,10 +76,7 @@ export default function LandingPage() {
         {/* Nav */}
         <nav className="py-5 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2.5 no-underline">
-            <div className="w-9 h-9 rounded-lg flex items-center justify-center text-lg font-extrabold text-white"
-              style={{ background: "linear-gradient(135deg, #4d8fcc, #e05572)" }}>
-              ⚒
-            </div>
+            <LogoMark size={36} />
             <span className="font-mono text-lg font-bold text-[var(--text-primary)] tracking-[-0.5px]">
               GodotForge
             </span>

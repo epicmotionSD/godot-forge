@@ -76,6 +76,11 @@ export default function ProjectSettingsPage() {
   const [webhookSetting, setWebhookSetting] = useState(false);
   const [webhookError, setWebhookError] = useState<string | null>(null);
 
+  // Delete state
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   useEffect(() => {
     async function load() {
       const supabase = createClient();
@@ -636,6 +641,55 @@ export default function ProjectSettingsPage() {
         >
           Back to Project
         </Link>
+
+        {/* Danger Zone */}
+        <div className="border-t border-gf-red/20 mt-6 pt-6">
+          <h2 className="text-base font-semibold text-gf-red mb-1">Danger Zone</h2>
+          <p className="text-sm text-gf-text-muted mb-4">
+            Permanently delete this project and all its build history. This cannot be undone.
+          </p>
+          <div className="bg-gf-card border border-gf-red/30 rounded-xl p-6 space-y-4">
+            <div>
+              <label className="block text-xs text-gf-text-muted mb-1">
+                Type <span className="font-mono text-gf-text">{project.name}</span> to confirm
+              </label>
+              <input
+                type="text"
+                value={deleteConfirm}
+                onChange={(e) => setDeleteConfirm(e.target.value)}
+                placeholder={project.name}
+                className="w-full px-3 py-2 rounded-lg bg-gf-elevated border border-gf-red/30 text-sm text-gf-text placeholder:text-gf-text-muted/40 focus:border-gf-red focus:outline-none"
+              />
+            </div>
+            <button
+              onClick={async () => {
+                if (deleteConfirm !== project.name) return;
+                setDeleting(true);
+                setDeleteError(null);
+                try {
+                  const res = await fetch(`/api/projects/${id}`, { method: "DELETE" });
+                  if (res.ok) {
+                    router.push("/dashboard");
+                  } else {
+                    const body = await res.json().catch(() => ({}));
+                    setDeleteError(body.error || `Delete failed (${res.status})`);
+                  }
+                } catch {
+                  setDeleteError("Network error — check your connection and try again.");
+                } finally {
+                  setDeleting(false);
+                }
+              }}
+              disabled={deleteConfirm !== project.name || deleting}
+              className="px-4 py-2 rounded-lg bg-gf-red/10 border border-gf-red/40 text-gf-red text-sm font-semibold hover:bg-gf-red/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {deleting ? "Deleting..." : "Delete Project"}
+            </button>
+            {deleteError && (
+              <p className="text-sm text-gf-red">{deleteError}</p>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

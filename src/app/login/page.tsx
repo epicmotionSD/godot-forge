@@ -1,6 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
+import { LogoMark } from "@/components/logo";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
@@ -35,9 +36,7 @@ function LoginForm() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="flex items-center justify-center gap-3 mb-10">
-          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-gf-blue to-gf-red flex items-center justify-center text-white font-extrabold text-lg">
-            ⚒
-          </div>
+          <LogoMark size={40} />
           <span className="font-mono text-xl font-bold text-gf-text tracking-tight">
             GodotForge
           </span>

@@ -13,6 +13,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://godotforge.dev"),
   title: "GodotForge — Ship Your Godot Game. Not YAML.",
   description:
     "The managed CI/CD platform built exclusively for Godot Engine. Connect your repo, pick platforms, deploy to Steam and itch.io.",
@@ -21,9 +22,12 @@ export const metadata: Metadata = {
     description:
       "Automated Godot builds with one-click deploy to Steam and itch.io. Free to start.",
     type: "website",
+    url: "https://godotforge.dev",
+    siteName: "GodotForge",
   },
   twitter: {
     card: "summary_large_image",
+    site: "@godotforge",
   },
 };
 

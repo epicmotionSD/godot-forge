@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { LogoMark } from "@/components/logo";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
@@ -35,9 +36,7 @@ export function DashboardShell({
         {/* Logo */}
         <div className="px-5 py-5 border-b border-gf-border">
           <Link href="/" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-gf-blue to-gf-red flex items-center justify-center text-white font-extrabold text-sm">
-              ⚒
-            </div>
+            <LogoMark size={32} />
             <span className="font-mono text-base font-bold text-gf-text tracking-tight">
               GodotForge
             </span>
