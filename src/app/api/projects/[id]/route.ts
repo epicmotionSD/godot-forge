@@ -22,7 +22,11 @@ export async function DELETE(
     .eq("user_id", user.id);
 
   if (error) {
-    return NextResponse.json({ error: "Delete failed" }, { status: 500 });
+    console.error("[DELETE /api/projects]", error.code, error.message, error.details);
+    return NextResponse.json(
+      { error: "Delete failed", code: error.code, detail: error.message },
+      { status: 500 }
+    );
   }
 
   return NextResponse.json({ success: true });
