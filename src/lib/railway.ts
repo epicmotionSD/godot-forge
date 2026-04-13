@@ -50,7 +50,7 @@ export async function startBuildContainer(opts: {
 
   const projectId = process.env.RAILWAY_PROJECT_ID!;
   const environmentId = process.env.RAILWAY_ENVIRONMENT_ID!;
-  const tag = opts.godotVersion || "4.3";
+  const tag = opts.godotVersion || "4.6";
   const builderImage = process.env.GODOT_BUILDER_IMAGE || `ghcr.io/epicmotionsd/godot-builder:${tag}`;
 
   // Create a service for this build (include platform to avoid name collisions)
@@ -121,17 +121,21 @@ export async function startBuildContainer(opts: {
     }
   );
 
-  // Wait briefly then fetch the latest non-removed deployment ID.
-  await new Promise((r) => setTimeout(r, 5000));
-  const deploymentsResult = await gql(
-    `query($input: DeploymentListInput!) {
-      deployments(input: $input) { edges { node { id status } } }
-    }`,
-    { input: { serviceId, environmentId } }
-  );
-  const latestDeployment = deploymentsResult.deployments.edges
-    .map((edge: { node: { id: string; status: string } }) => edge.node)
-    .find((deployment: { id: string; status: string }) => deployment.status !== "REMOVED");
+  // Poll for the deployment ID — Railway may take a few seconds to create it.
+  let latestDeployment: { id: string; status: string } | undefined;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    await new Promise((r) => setTimeout(r, 3000));
+    const deploymentsResult = await gql(
+      `query($input: DeploymentListInput!) {
+        deployments(input: $input) { edges { node { id status } } }
+      }`,
+      { input: { serviceId, environmentId } }
+    );
+    latestDeployment = deploymentsResult.deployments.edges
+      .map((edge: { node: { id: string; status: string } }) => edge.node)
+      .find((deployment: { id: string; status: string }) => deployment.status !== "REMOVED");
+    if (latestDeployment) break;
+  }
 
   if (!latestDeployment) {
     throw new Error("No active deployment found after serviceInstanceUpdate");
