@@ -277,8 +277,10 @@ for platform in "${PLATFORM_LIST[@]}"; do
 
   append_log "export" "Exporting for ${platform} (preset: ${PRESET_NAME})..." "${platform}"
 
-  if timeout 600 godot --headless --export-release "${PRESET_NAME}" "${OUTPUT_FILE}" 2>&1; then
+  EXPORT_LOG=$(mktemp)
+  if timeout 600 godot --headless --export-release "${PRESET_NAME}" "${OUTPUT_FILE}" >"${EXPORT_LOG}" 2>&1; then
     append_log "export" "Export successful for ${platform}" "${platform}"
+    rm -f "${EXPORT_LOG}"
 
     # For web builds, zip the output directory
     if [ "${platform}" = "web" ] && [ -f "${OUTPUT_FILE}" ]; then
@@ -316,6 +318,14 @@ for platform in "${PLATFORM_LIST[@]}"; do
     else
       append_log "export" "Export FAILED for ${platform} (exit ${EXPORT_EXIT})" "${platform}"
     fi
+    # Forward the last 40 lines of Godot's stdout/stderr to Supabase logs.
+    if [ -f "${EXPORT_LOG}" ]; then
+      while IFS= read -r line; do
+        [ -z "${line}" ] && continue
+        append_log "export" "godot: ${line}" "${platform}"
+      done < <(tail -n 40 "${EXPORT_LOG}")
+    fi
+    rm -f "${EXPORT_LOG}"
     had_failure=1
   fi
 done
