@@ -12,3 +12,5 @@ out/
 *.tsbuildinfo
 next-env.d.ts
 .env*.local
+.env.production
+.env.development

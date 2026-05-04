@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createClient as createServiceClient } from "@supabase/supabase-js";
 
 export async function DELETE(
   _request: NextRequest,
@@ -27,25 +28,28 @@ export async function DELETE(
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
   }
 
-  // Manually cascade: build_logs + artifacts → builds → project
-  // (handles DBs where ON DELETE CASCADE wasn't applied)
-  const { data: builds } = await supabase
+  // Cascade-delete via service role: RLS only has DELETE policies on `projects`,
+  // not on `builds`/`build_logs`/`artifacts`, so a user-scoped delete on those
+  // tables is silently a no-op and the FK to `builds.project_id` blocks the
+  // project delete. Ownership has already been verified above.
+  const service = createServiceClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
+  const { data: builds } = await service
     .from("builds")
     .select("id")
     .eq("project_id", id);
 
   if (builds && builds.length > 0) {
     const buildIds = builds.map((b) => b.id);
-    await supabase.from("build_logs").delete().in("build_id", buildIds);
-    await supabase.from("artifacts").delete().in("build_id", buildIds);
-    await supabase.from("builds").delete().in("id", buildIds);
+    await service.from("build_logs").delete().in("build_id", buildIds);
+    await service.from("artifacts").delete().in("build_id", buildIds);
+    await service.from("builds").delete().in("id", buildIds);
   }
 
-  const { error } = await supabase
-    .from("projects")
-    .delete()
-    .eq("id", id)
-    .eq("user_id", user.id);
+  const { error } = await service.from("projects").delete().eq("id", id);
 
   if (error) {
     console.error("[DELETE /api/projects]", error.code, error.message, error.details);
